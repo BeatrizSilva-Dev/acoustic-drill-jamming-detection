@@ -846,7 +846,7 @@ for drill_folder in sorted(os.listdir(ROOT_DATASET)):
             X_drill.append(np.hstack([feat_a, feat_b]))
             hole_indices.append(hole)
         except Exception as exc:
-            print(f"[WARNING] Hole failure {hole} {drill_folder}: {exc}")
+            print(f"[WARNING] Hole failure {hole} of {drill_folder}: {exc}")
 
     n_total = len(X_drill)
     if n_total == 0:
