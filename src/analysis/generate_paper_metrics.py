@@ -21,9 +21,6 @@ except Exception:
     norm = None
     wilcoxon = None
 
-# ------------------------------
-# Protocolo experimental
-# ------------------------------
 CALIBRATION_HOLES = 5
 MONITORING_START_HOLE = CALIBRATION_HOLES + 1
 PERSISTENCE_W = 2
@@ -35,66 +32,65 @@ FT_VARIANTS = ["FT_LAST_LAYER", "FT_DECODER", "FT_ALL_LOW_LR"]
 
 BASE_RESULT_FILES = {
     "Common": {
-        "MLP-AE": "results_autoencoder_common_option_A.csv",
-        "LSTM-AE": "results_LSTM_common_option_A.csv",
-        "XGBoost": "results_xgboost_common_option_A.csv",
+        "MLP-AE": "results_autoencoder_common.csv",
+        "LSTM-AE": "results_LSTM_common.csv",
+        "XGBoost": "results_xgboost_common.csv",
     },
     "Ultrasonic": {
-        "MLP-AE": "results_autoencoder_ultrasonic_option_A.csv",
-        "LSTM-AE": "results_LSTM_ultrasonic_option_A.csv",
-        "XGBoost": "results_xgboost_ultrasonic_option_A.csv",
+        "MLP-AE": "results_autoencoder_ultrasonic.csv",
+        "LSTM-AE": "results_LSTM_ultrasonic.csv",
+        "XGBoost": "results_xgboost_ultrasonic.csv",
     },
     "Hybrid": {
-        "MLP-AE": "results_autoencoder_hybrid_option_A.csv",
-        "LSTM-AE": "results_LSTM_hybrid_option_A.csv",
-        "XGBoost": "results_xgboost_hybrid_option_A.csv",
+        "MLP-AE": "results_autoencoder_hybrid.csv",
+        "LSTM-AE": "results_LSTM_hybrid.csv",
+        "XGBoost": "results_xgboost_hybrid.csv",
     },
 }
 
 ROC_FILES = {
     "Common": {
-        "MLP-AE": "common_mlp_roc_data_option_A.csv",
-        "LSTM-AE": "common_lstm_roc_data_option_A.csv",
-        "XGBoost": "common_xgboost_roc_data_option_A.csv",
-        "MLP-AE — FT last layer": "common_mlp_ft_last_layer_roc_data_option_A.csv",
-        "MLP-AE — FT decoder": "common_mlp_ft_decoder_roc_data_option_A.csv",
-        "MLP-AE — FT all low LR": "common_mlp_ft_all_low_lr_roc_data_option_A.csv",
-        "LSTM-AE — FT last layer": "common_lstm_ft_last_layer_roc_data_option_A.csv",
-        "LSTM-AE — FT decoder": "common_lstm_ft_decoder_roc_data_option_A.csv",
-        "LSTM-AE — FT all low LR": "common_lstm_ft_all_low_lr_roc_data_option_A.csv",
+        "MLP-AE": "common_mlp_roc_data.csv",
+        "LSTM-AE": "common_lstm_roc_data.csv",
+        "XGBoost": "common_xgboost_roc_data.csv",
+        "MLP-AE — FT last layer": "common_mlp_ft_last_layer_roc_data.csv",
+        "MLP-AE — FT decoder": "common_mlp_ft_decoder_roc_data.csv",
+        "MLP-AE — FT all low LR": "common_mlp_ft_all_low_lr_roc_data.csv",
+        "LSTM-AE — FT last layer": "common_lstm_ft_last_layer_roc_data.csv",
+        "LSTM-AE — FT decoder": "common_lstm_ft_decoder_roc_data.csv",
+        "LSTM-AE — FT all low LR": "common_lstm_ft_all_low_lr_roc_data.csv",
     },
     "Ultrasonic": {
-        "MLP-AE": "ultrasonic_mlp_roc_data_option_A.csv",
-        "LSTM-AE": "ultrasonic_lstm_roc_data_option_A.csv",
-        "XGBoost": "ultrasonic_xgboost_roc_data_option_A.csv",
-        "MLP-AE — FT last layer": "ultrasonic_mlp_ft_last_layer_roc_data_option_A.csv",
-        "MLP-AE — FT decoder": "ultrasonic_mlp_ft_decoder_roc_data_option_A.csv",
-        "MLP-AE — FT all low LR": "ultrasonic_mlp_ft_all_low_lr_roc_data_option_A.csv",
-        "LSTM-AE — FT last layer": "ultrasonic_lstm_ft_last_layer_roc_data_option_A.csv",
-        "LSTM-AE — FT decoder": "ultrasonic_lstm_ft_decoder_roc_data_option_A.csv",
-        "LSTM-AE — FT all low LR": "ultrasonic_lstm_ft_all_low_lr_roc_data_option_A.csv",
+        "MLP-AE": "ultrasonic_mlp_roc_data.csv",
+        "LSTM-AE": "ultrasonic_lstm_roc_data.csv",
+        "XGBoost": "ultrasonic_xgboost_roc_data.csv",
+        "MLP-AE — FT last layer": "ultrasonic_mlp_ft_last_layer_roc_data.csv",
+        "MLP-AE — FT decoder": "ultrasonic_mlp_ft_decoder_roc_data.csv",
+        "MLP-AE — FT all low LR": "ultrasonic_mlp_ft_all_low_lr_roc_data.csv",
+        "LSTM-AE — FT last layer": "ultrasonic_lstm_ft_last_layer_roc_data.csv",
+        "LSTM-AE — FT decoder": "ultrasonic_lstm_ft_decoder_roc_data.csv",
+        "LSTM-AE — FT all low LR": "ultrasonic_lstm_ft_all_low_lr_roc_data.csv",
     },
     "Hybrid": {
-        "MLP-AE": "hybrid_mlp_roc_data_option_A.csv",
-        "LSTM-AE": "hybrid_lstm_roc_data_option_A.csv",
-        "XGBoost": "hybrid_xgboost_roc_data_option_A.csv",
-        "MLP-AE — FT last layer": "hybrid_mlp_ft_last_layer_roc_data_option_A.csv",
-        "MLP-AE — FT decoder": "hybrid_mlp_ft_decoder_roc_data_option_A.csv",
-        "MLP-AE — FT all low LR": "hybrid_mlp_ft_all_low_lr_roc_data_option_A.csv",
-        "LSTM-AE — FT last layer": "hybrid_lstm_ft_last_layer_roc_data_option_A.csv",
-        "LSTM-AE — FT decoder": "hybrid_lstm_ft_decoder_roc_data_option_A.csv",
-        "LSTM-AE — FT all low LR": "hybrid_lstm_ft_all_low_lr_roc_data_option_A.csv",
+        "MLP-AE": "hybrid_mlp_roc_data.csv",
+        "LSTM-AE": "hybrid_lstm_roc_data.csv",
+        "XGBoost": "hybrid_xgboost_roc_data.csv",
+        "MLP-AE — FT last layer": "hybrid_mlp_ft_last_layer_roc_data.csv",
+        "MLP-AE — FT decoder": "hybrid_mlp_ft_decoder_roc_data.csv",
+        "MLP-AE — FT all low LR": "hybrid_mlp_ft_all_low_lr_roc_data.csv",
+        "LSTM-AE — FT last layer": "hybrid_lstm_ft_last_layer_roc_data.csv",
+        "LSTM-AE — FT decoder": "hybrid_lstm_ft_decoder_roc_data.csv",
+        "LSTM-AE — FT all low LR": "hybrid_lstm_ft_all_low_lr_roc_data.csv",
     },
 }
 
 FT_SCORE_FILES = {
-    domain: f"results_MLP_LSTM_finetuning_3_variants_{domain.lower()}_option_A.csv"
+    domain: f"results_MLP_LSTM_finetuning_3_variants_{domain.lower()}.csv"
     for domain in DOMAIN_ORDER
 }
 
 
 def locate_project_root() -> Path:
-    """Find project root containing data/results or honor PROJECT_ROOT."""
     env_root = os.environ.get("PROJECT_ROOT")
     candidates: list[Path] = []
     if env_root:
@@ -105,34 +101,30 @@ def locate_project_root() -> Path:
         if (candidate / "data" / "results").is_dir():
             return candidate
     raise FileNotFoundError(
-        "Não encontrei 'data/results'. Coloque este script dentro do projeto "
-        "ou defina PROJECT_ROOT para a pasta raiz do projeto."
+        "Could not find 'data/results'. Place this script inside the project "
+        "or set PROJECT_ROOT to the project's root folder."
     )
-
 
 PROJECT_ROOT = locate_project_root()
 RESULTS_DIR = PROJECT_ROOT / "data" / "results"
-
 
 def first_existing_column(df: pd.DataFrame, options: tuple[str, ...], purpose: str) -> str:
     for col in options:
         if col in df.columns:
             return col
-    raise KeyError(f"CSV sem coluna para {purpose}; opções esperadas: {options}")
+    raise KeyError(f"CSV missing column for {purpose}; expected options: {options}")
 
 
 def label_col(df: pd.DataFrame) -> str:
-    return first_existing_column(df, ("label", "label_real", "y_true"), "rótulo")
+    return first_existing_column(df, ("label", "label_real", "y_true"), "label")
 
 
 def position_col(df: pd.DataFrame) -> str:
-    # hole_index é a posição ordinal 1-based da sequência usada para os rótulos.
-    # Se ausente, usa o número físico do furo.
-    return first_existing_column(df, ("hole_index", "hole", "hole_id", "hole_number"), "posição/furo")
+    return first_existing_column(df, ("hole_index", "hole", "hole_id", "hole_number"), "hole")
 
 
 def drill_col(df: pd.DataFrame) -> str:
-    return first_existing_column(df, ("drill", "drill_id", "tool", "tool_id"), "identificador da broca")
+    return first_existing_column(df, ("drill", "drill_id", "tool", "tool_id"), "drill bit identifier")
 
 
 def score_col(df: pd.DataFrame, model: str) -> Optional[str]:
@@ -143,9 +135,7 @@ def score_col(df: pd.DataFrame, model: str) -> Optional[str]:
     )
     return next((c for c in candidates if c in df.columns), None)
 
-
 def monitoring_binary_rows(df: pd.DataFrame, require_prediction: bool = True) -> tuple[pd.DataFrame, str, str, str]:
-    """Use only sequence positions >= 6 and labels 0/1; exclude transition -1."""
     ycol = label_col(df)
     pcol = position_col(df)
     dcol = drill_col(df)
@@ -155,7 +145,7 @@ def monitoring_binary_rows(df: pd.DataFrame, require_prediction: bool = True) ->
     required = [pcol, ycol, dcol]
     if require_prediction:
         if "prediction" not in out.columns:
-            raise KeyError("CSV sem coluna 'prediction'.")
+            raise KeyError("CSV without a 'prediction' column.")
         out["prediction"] = pd.to_numeric(out["prediction"], errors="coerce")
         required.append("prediction")
     out = out.dropna(subset=required)
@@ -165,14 +155,7 @@ def monitoring_binary_rows(df: pd.DataFrame, require_prediction: bool = True) ->
         out["prediction"] = out["prediction"].astype(int)
     return out, ycol, pcol, dcol
 
-
 def calculate_mlt_w2(df_full: pd.DataFrame) -> float:
-    """Mean lead-to-boundary score in holes, W=2; no alarm contributes zero.
-
-    The boundary is floor(0.8 * number of events) for each drill. A persistent
-    alarm must occur at two consecutive sequence positions, starting at position
-    6 or later and before the 80% boundary. This is an operational proxy, not RUL.
-    """
     ycol = label_col(df_full)
     pcol = position_col(df_full)
     dcol = drill_col(df_full)
@@ -184,8 +167,6 @@ def calculate_mlt_w2(df_full: pd.DataFrame) -> float:
 
     for _, sub in data.groupby(dcol, sort=True):
         sub = sub.sort_values(pcol).reset_index(drop=True)
-        # Use the maximum 1-based sequence position when available; for contiguous
-        # sequences this equals the number of events.
         n_events = int(sub[pcol].max()) if not sub.empty else 0
         if n_events <= CALIBRATION_HOLES:
             continue
@@ -210,11 +191,11 @@ def calculate_mlt_w2(df_full: pd.DataFrame) -> float:
 def calculate_table2_row(domain: str, model: str, filename: str) -> dict:
     path = RESULTS_DIR / filename
     if not path.exists():
-        raise FileNotFoundError(f"CSV de resultados-base não encontrado: {path}")
+        raise FileNotFoundError(f"Base results CSV not found: {path}")
     df_full = pd.read_csv(path)
     df_eval, ycol, _, dcol = monitoring_binary_rows(df_full, require_prediction=True)
     if df_eval.empty:
-        raise ValueError(f"Nenhuma observação de monitoramento válida em {path.name}.")
+        raise ValueError(f"No valid monitoring observation in {path.name}.")
 
     y_true = df_eval[ycol].astype(int).to_numpy()
     y_pred = df_eval["prediction"].astype(int).to_numpy()
@@ -248,12 +229,11 @@ def calculate_table2_row(domain: str, model: str, filename: str) -> dict:
 
 
 def read_roc_auc(path: Path) -> float:
-    """Compute AUC from a regenerated ROC CSV; preserve sklearn point order."""
     if not path.exists():
-        raise FileNotFoundError(f"CSV ROC não encontrado: {path}")
+        raise FileNotFoundError(f"CSV ROC not found: {path}")
     df = pd.read_csv(path)
     if not {"fpr", "tpr"}.issubset(df.columns):
-        raise ValueError(f"{path.name}: esperava colunas 'fpr' e 'tpr'.")
+        raise ValueError(f"{path.name}: expected 'fpr' and 'tpr' columns.")
     df["fpr"] = pd.to_numeric(df["fpr"], errors="coerce")
     df["tpr"] = pd.to_numeric(df["tpr"], errors="coerce")
     df = df.dropna(subset=["fpr", "tpr"])
@@ -299,8 +279,6 @@ def per_drill_f1_from_df(df: pd.DataFrame, model: str, domain: str, variant: str
     rows = []
     for drill, sub in eval_df.groupby(dcol, sort=True):
         if sub[ycol].nunique() < 2:
-            # F1 is still mathematically computable, but for paired model comparison
-            # retain only drills with both classes to make the comparison interpretable.
             continue
         rows.append({"Configuration": domain, "Model": model, "Variant": variant,
                      "drill": drill, "F1-score": f1_score(sub[ycol], sub["prediction"], zero_division=0),
@@ -314,19 +292,19 @@ def build_per_drill_metrics() -> pd.DataFrame:
         for model in MODEL_ORDER:
             path = RESULTS_DIR / BASE_RESULT_FILES[domain][model]
             if not path.exists():
-                print(f"[WARNING] Sem arquivo para F1 por broca: {path.name}")
+                print(f"[WARNING] No file for F1 via drill-down: {path.name}")
                 continue
             df = pd.read_csv(path)
             pieces.append(per_drill_f1_from_df(df, model, domain, "BASE"))
 
         ft_path = RESULTS_DIR / FT_SCORE_FILES[domain]
         if not ft_path.exists():
-            print(f"[WARNING] Sem scores de fine-tuning por domínio: {ft_path.name}")
+            print(f"[WARNING] No fine-tuning scores by domain: {ft_path.name}")
             continue
         ft = pd.read_csv(ft_path)
         needed = {"model", "variant", "drill", "label", "prediction"}
         if not needed.issubset(ft.columns):
-            print(f"[WARNING] {ft_path.name} não tem todas as colunas necessárias: {sorted(needed)}")
+            print(f"[WARNING] {ft_path.name} does not have all the required columns: {sorted(needed)}")
             continue
         for model in ("MLP-AE", "LSTM-AE"):
             for variant in FT_VARIANTS:
@@ -340,7 +318,6 @@ def build_per_drill_metrics() -> pd.DataFrame:
 
 
 def holm_adjust(p_values: list[float]) -> list[float]:
-    """Holm step-down adjusted p-values, preserving original order."""
     p = np.asarray(p_values, dtype=float)
     n = len(p)
     order = np.argsort(p)
@@ -431,14 +408,14 @@ def main() -> None:
           f"binary metrics labels 0/1 only; persistence W={PERSISTENCE_W}; MLT boundary={FAILURE_BOUNDARY_FRACTION:.0%}.")
 
     table2 = build_table2()
-    print("\nTABLE 2 — BASE MODEL PERFORMANCE ON MONITORING EVENTS")
+    print("\nBASE MODEL PERFORMANCE ON MONITORING EVENTS")
     print(table2.to_string(index=False, float_format=lambda x: f"{x:.4f}"))
     save_table(table2, "table_2_model_performance_revised",
                ["F1-score", "Precision", "Recall", "Accuracy", "AUC", "MLT (holes; W=2)"],
                "llrrrrrrrrrrrrr")
 
     table3 = build_table3()
-    print("\nTABLE 3 — ROC AUC FOR BASE MODELS AND FINE-TUNING VARIANTS")
+    print("\nROC AUC FOR BASE MODELS AND FINE-TUNING VARIANTS")
     print(table3.to_string(index=False, float_format=lambda x: f"{x:.4f}"))
     save_table(table3, "table_3_finetuning_auc_revised", ["AUC"], "llrrl")
 
@@ -465,9 +442,7 @@ def main() -> None:
         f.write("AUC is calculated from continuous scores, not thresholded predictions.\n")
         f.write("Fine-tuning comparisons use paired per-drill F1 where both base and fine-tuned results are available.\n")
         f.write("Wilcoxon p-values are exploratory; Holm adjustment is applied within each sensing domain across available comparisons.\n")
-    print(f"Salvo: {audit}")
-    print("\nDone. Use only these regenerated tables for the manuscript. Inspect missing-file warnings before reporting results.")
-
+        
 
 if __name__ == "__main__":
     main()
