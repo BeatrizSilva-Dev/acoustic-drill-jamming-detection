@@ -1,10 +1,3 @@
-"""Plot all nine Option A ROC curves on ONE set of axes.
-
-Inputs: data/results/{common,ultrasonic,hybrid}_{mlp,lstm,xgboost}_roc_data_option_A.csv
-Required CSV columns: fpr, tpr. AUC is computed from the saved ROC coordinates.
-The CSVs must already reflect the intended evaluation protocol (holes >= 6, labels 0/1).
-This plotting script does not reconstruct ROC curves or change the evaluation.
-"""
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -22,7 +15,6 @@ RESULTS_DIR = PROJECT_ROOT / 'data' / 'results'
 PLOT_DIR = PROJECT_ROOT / 'plots'
 PLOT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Colors distinguish sensing configurations; line styles distinguish models.
 CONFIGS = {
     'Common': {'prefix': 'common', 'color': '#2878B5'},
     'Ultrasonic': {'prefix': 'ultrasonic', 'color': '#2A9D8F'},
@@ -36,7 +28,6 @@ MODELS = {
 
 SHOW_FIGURE = True
 
-# Padrão IEEE para largura de uma coluna: fontes legíveis e nítidas
 plt.rcParams.update({
     'font.family': 'serif',
     'font.serif': ['Times New Roman', 'DejaVu Serif'],
@@ -80,11 +71,10 @@ def plot_all_9_curves_roc():
     curves = []
     for config_name, config in CONFIGS.items():
         for model_name, model in MODELS.items():
-            filename = f"{config['prefix']}_{model['file_key']}_roc_data_option_A.csv"
+            filename = f"{config['prefix']}_{model['file_key']}_roc_data.csv"
             fpr, tpr, area = load_roc_csv(RESULTS_DIR / filename)
             curves.append((config_name, model_name, fpr, tpr, area, filename))
 
-    # Dimensão padrão de coluna IEEE (3.5 polegadas de largura por 3.5 de altura)
     fig, ax = plt.subplots(figsize=(3.5, 3.5))
 
     ax.plot([0, 1], [0, 1], color='#777777', linestyle=(0, (2, 2)),
@@ -109,8 +99,7 @@ def plot_all_9_curves_roc():
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-    # Legenda interna no canto inferior direito
-    # framealpha=0.85 garante que ela fique destacada sem apagar totalmente a linha de chance
+
     ax.legend(
         loc='lower right',
         bbox_to_anchor=(0.99, 0.02),
@@ -125,9 +114,9 @@ def plot_all_9_curves_roc():
         framealpha=0.88
     )
 
-    pdf_path = PLOT_DIR / 'roc_9_curves_one_graph_option_A_column_width.pdf'
-    png_path = PLOT_DIR / 'roc_9_curves_one_graph_option_A_column_width.png'
-    auc_path = PLOT_DIR / 'roc_auc_values_used_for_plot_option_A.csv'
+    pdf_path = PLOT_DIR / 'roc_9_curves_column_width.pdf'
+    png_path = PLOT_DIR / 'roc_9_curves_column_width.png'
+    auc_path = PLOT_DIR / 'roc_auc_values_used_for_plot.csv'
 
     fig.savefig(pdf_path, bbox_inches='tight', pad_inches=0.02)
     fig.savefig(png_path, dpi=600, bbox_inches='tight', pad_inches=0.02)
