@@ -1298,9 +1298,7 @@ for drill_test in eligible_drills:
             f"Recall={ft_mlp_metrics['recall']:.3f}"
         )
 
-        print("\n" + "-" * 60)
         print(f"LSTM-AE fine-tuning: {variant}")
-        print("-" * 60)
 
         ft_lstm_model = fine_tune_lstm_on_calibration(
             lstm_ae,

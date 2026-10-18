@@ -18,21 +18,8 @@ from sklearn.metrics import (
     f1_score, roc_auc_score,
 )
 
-
-# ============================================================
-# REVISED CALIBRATION / FINE-TUNING PROTOCOL
-# ============================================================
-
 CALIBRATION_HOLES = 5
 MONITORING_START_HOLE = CALIBRATION_HOLES + 1
-
-# The held-out drill is never used to train the base model.
-# Its first 5 holes are used only for local adaptation/calibration.
-# Monitoring and all evaluation metrics start at hole 6.
-#
-# IMPORTANT:
-# The anomaly threshold must be computed from TRAINING DRILLS ONLY,
-# BEFORE fine-tuning, and then kept frozen for every FT variant.
 
 FT_EPOCHS = 10
 FT_BATCH_SIZE = 16
@@ -47,10 +34,6 @@ FT_VARIANTS = [
     "FT_ALL_LOW_LR",
 ]
 
-
-# ============================================================
-# REPRODUTIBILIDADE
-# ============================================================
 os.environ["PYTHONHASHSEED"] = "42"
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
@@ -80,9 +63,6 @@ from tensorflow.keras.layers import Input, LSTM, RepeatVector, TimeDistributed, 
 from tensorflow.keras import backend as K
 from tensorflow.keras.optimizers import Adam
 
-# ============================================================
-# DIRETÓRIOS
-# ============================================================
 SCRIPT_PATH = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = SCRIPT_PATH
 
@@ -90,7 +70,7 @@ while not os.path.exists(os.path.join(PROJECT_ROOT, "data")):
     parent = os.path.dirname(PROJECT_ROOT)
     if parent == PROJECT_ROOT:
         raise FileNotFoundError(
-            "Não foi possível localizar o diretório raiz contendo a pasta 'data'."
+            "Unable to locate the root directory containing the 'data' folder."
         )
     PROJECT_ROOT = parent
 
@@ -105,9 +85,6 @@ PLOTS_DIR = os.path.join(DATA_DIR, "plots")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 os.makedirs(PLOTS_DIR, exist_ok=True)
 
-# ============================================================
-# CONFIGURAÇÕES DO EXPERIMENTO
-# ============================================================
 MIC_A = "ultrasonic_mics"
 MIC_B = None
 TARGET_CHANNEL = "4"
@@ -125,13 +102,9 @@ XGB_SCALE_POS_WEIGHT = 8
 SENSOR_DOMAIN = "ultrasonic_audio"
 
 if not os.path.exists(LISTENING_FILE):
-    raise FileNotFoundError(f"Arquivo não encontrado: {LISTENING_FILE}")
+    raise FileNotFoundError(f"File not found: {LISTENING_FILE}")
 
-# ============================================================
-# NOMES DAS BROCAS
-# ============================================================
 def standardize_drill_folder_name(name):
-    """Padroniza as pastas antigas drill_4mm_04..23 para 01..20."""
     match = re.search(r"drill_4mm_(\d+)", str(name).lower())
     if match:
         num = int(match.group(1))
@@ -146,9 +119,6 @@ df_listening["drill"] = (
     df_listening["drill"].astype(str).str.lower().str.strip()
 )
 
-# ============================================================
-# FUNÇÕES AUXILIARES
-# ============================================================
 def extract_hole_number(filename):
     match = re.search(r"hole(\d+)", filename)
     return int(match.group(1)) if match else None
@@ -165,23 +135,7 @@ def extract_features(y, sr):
             np.std(rms),
         ]
     )
-
-
-
-# ============================================================
-# FINE-TUNING HELPERS
-# ============================================================
-
 def fine_tune_autoencoder(model, X_adaptation, variant, model_type):
-    """
-    Fine-tune MLP/LSTM autoencoder using ONLY the 5 calibration holes.
-
-    model_type: "MLP" or "LSTM"
-    variant:
-        FT_LAST_LAYER
-        FT_DECODER
-        FT_ALL_LOW_LR
-    """
     if X_adaptation is None or len(X_adaptation) == 0:
         return model
 
@@ -189,12 +143,10 @@ def fine_tune_autoencoder(model, X_adaptation, variant, model_type):
         layer.trainable = False
 
     if variant == "FT_LAST_LAYER":
-        # Only final reconstruction/output layer.
         model.layers[-1].trainable = True
         lr = FT_LR_LAST_LAYER
 
     elif variant == "FT_DECODER":
-        # Decoder/output layers when architecture names expose them.
         found = False
 
         for layer in model.layers:
@@ -207,7 +159,6 @@ def fine_tune_autoencoder(model, X_adaptation, variant, model_type):
                 layer.trainable = True
                 found = True
 
-        # Safe fallback for architectures without explicit decoder names.
         if not found:
             model.layers[-1].trainable = True
 
@@ -256,8 +207,6 @@ def fine_tune_autoencoder(model, X_adaptation, variant, model_type):
 
     return model
 
-
-
 def create_sequences(X, seq_len):
     if len(X) < seq_len:
         return np.empty((0, seq_len, X.shape[1]), dtype=float)
@@ -265,21 +214,6 @@ def create_sequences(X, seq_len):
 
 
 def create_padded_causal_sequences(X, seq_len):
-    """
-    Creates one causal sequence ending at every hole.
-
-    For the first holes, the sequence is left-padded by repeating
-    the first available observation. This provides one valid LSTM
-    reconstruction error per hole, including holes 1..5, without
-    using future observations.
-
-    Example for seq_len=5:
-      hole 1 -> [1,1,1,1,1]
-      hole 2 -> [1,1,1,1,2]
-      ...
-      hole 5 -> [1,2,3,4,5]
-      hole 6 -> [2,3,4,5,6]
-    """
     X = np.asarray(X, dtype=float)
 
     if len(X) == 0:
@@ -301,7 +235,6 @@ def create_padded_causal_sequences(X, seq_len):
 
 
 def create_lstm_autoencoder(n_features):
-    """Baseline LSTM autoencoder with named layers for controlled fine-tuning."""
     inputs = Input(shape=(SEQ_LEN, n_features), name="input_sequence")
 
     encoded = LSTM(
@@ -336,23 +269,6 @@ def create_lstm_autoencoder(n_features):
 
 
 def clone_lstm_with_weights(base_model, variant):
-    """
-    Creates an independent copy of the pretrained LSTM-AE and configures
-    trainable layers for one of the three fine-tuning variants.
-
-    Variant 1: last layer only
-      - encoder frozen
-      - decoder LSTM frozen
-      - output Dense trainable
-
-    Variant 2: decoder
-      - encoder frozen
-      - decoder LSTM + output Dense trainable
-
-    Variant 3: all layers with low learning rate
-      - all layers trainable
-      - learning rate = 1e-4
-    """
     clone = tf.keras.models.clone_model(base_model)
     clone.set_weights(base_model.get_weights())
 
@@ -376,7 +292,7 @@ def clone_lstm_with_weights(base_model, variant):
         learning_rate = 1e-4
 
     else:
-        raise ValueError(f"Variante de fine-tuning desconhecida: {variant}")
+        raise ValueError(f"Unknown fine-tuning variant: {variant}")
 
     clone.compile(
         optimizer=Adam(learning_rate=learning_rate),
@@ -386,11 +302,6 @@ def clone_lstm_with_weights(base_model, variant):
 
 
 def fine_tune_lstm_on_calibration(base_model, X_calibration_scaled, variant):
-    """
-    Fine-tunes a pretrained LSTM-AE only with the first five holes of the
-    unseen test drill. No labels are used. The five causal sequences are
-    generated with left padding, so no future observation enters training.
-    """
     model = clone_lstm_with_weights(base_model, variant)
 
     X_calib_seq = create_padded_causal_sequences(
@@ -399,10 +310,8 @@ def fine_tune_lstm_on_calibration(base_model, X_calibration_scaled, variant):
     )
 
     if len(X_calib_seq) == 0:
-        raise ValueError("Não há sequências suficientes para fine-tuning.")
+        raise ValueError("There are not enough sequences for fine-tuning.")
 
-    # Very small adaptation set: use few epochs and no shuffling to preserve
-    # the temporal order of the five calibration holes.
     model.fit(
         X_calib_seq,
         X_calib_seq,
@@ -427,7 +336,6 @@ def reconstruction_errors_lstm(model, X_seq):
 
 
 def map_lstm_sequence_errors_to_holes(errors_seq, n_holes):
-    """Mapeia um erro causal para cada furo."""
     errors = np.full(n_holes, np.nan, dtype=float)
     if len(errors_seq) > 0:
         errors[: min(n_holes, len(errors_seq))] = errors_seq[:n_holes]
@@ -435,7 +343,6 @@ def map_lstm_sequence_errors_to_holes(errors_seq, n_holes):
 
 
 def normalize_by_initial_baseline(errors, n_calibration=CALIBRATION_HOLES):
-    """Normaliza scores pela mediana dos scores disponíveis na calibração inicial."""
     calibration_errors = errors[:n_calibration]
     calibration_errors = calibration_errors[np.isfinite(calibration_errors)]
 
@@ -452,14 +359,6 @@ def persistence_alarm(
     start_index=EVAL_START_HOLE_INDEX,
     window=PERSISTENCE_W,
 ):
-    """
-    Confirma o alarme após W eventos consecutivos e mantém o estado
-    confirmado até o final do monitoramento.
-
-    Exemplo, W=3:
-      raw:  0 0 1 1 1 1 1
-      pred: 0 0 0 0 1 1 1
-    """
     raw_alarm = np.asarray(raw_alarm, dtype=int)
     pred = np.zeros(len(raw_alarm), dtype=int)
 
@@ -482,7 +381,6 @@ def persistence_alarm(
 
 
 def build_training_data(drills_data, drill_test):
-    """XGBoost: normal + failure-aligned das 19 brocas; transição (-1) excluída."""
     X_train = []
     y_train = []
 
@@ -496,7 +394,7 @@ def build_training_data(drills_data, drill_test):
             y_train.append(data["y"][mask])
 
     if not X_train:
-        raise ValueError(f"Sem dados de treino para {drill_test}.")
+        raise ValueError(f"No training data for {drill_test}.")
 
     X_train = np.vstack(X_train)
     y_train = np.concatenate(y_train)
@@ -504,7 +402,6 @@ def build_training_data(drills_data, drill_test):
 
 
 def build_ae_normal_training_data(drills_data, drill_test):
-    """MLP/LSTM-AE: somente eventos normais das 19 brocas de treinamento."""
     normal_by_drill = {}
 
     for drill_name, data in drills_data.items():
@@ -518,14 +415,13 @@ def build_ae_normal_training_data(drills_data, drill_test):
             normal_by_drill[drill_name] = normal_X
 
     if not normal_by_drill:
-        raise ValueError(f"Sem dados normais suficientes para AE no LODO de {drill_test}.")
+        raise ValueError(f"Without sufficient normal data for AE in the sludge of {drill_test}.")
 
     X_normal = np.vstack(list(normal_by_drill.values()))
     return X_normal, normal_by_drill
 
 
 def create_mlp_autoencoder(n_features):
-    """Dense autoencoder with named layers for controlled fine-tuning."""
     inputs = Input(shape=(n_features,), name="input_features")
 
     encoded = Dense(
@@ -576,7 +472,6 @@ def train_mlp_autoencoder(X_normal_train, n_features):
 
 
 def clone_mlp_with_weights(base_model, variant):
-    """Clone a pretrained MLP-AE and configure one fine-tuning variant."""
     clone = tf.keras.models.clone_model(base_model)
     clone.set_weights(base_model.get_weights())
 
@@ -596,7 +491,7 @@ def clone_mlp_with_weights(base_model, variant):
         learning_rate = 1e-4
 
     else:
-        raise ValueError(f"Variante de fine-tuning desconhecida: {variant}")
+        raise ValueError(f"Unknown fine-tuning variant: {variant}")
 
     clone.compile(
         optimizer=Adam(learning_rate=learning_rate),
@@ -606,12 +501,11 @@ def clone_mlp_with_weights(base_model, variant):
 
 
 def fine_tune_mlp_on_calibration(base_model, X_calibration_scaled, variant):
-    """Fine-tune MLP-AE only on the first five unlabeled calibration holes."""
     model = clone_mlp_with_weights(base_model, variant)
 
     X_calibration_scaled = np.asarray(X_calibration_scaled, dtype=float)
     if len(X_calibration_scaled) == 0:
-        raise ValueError("Não há dados suficientes para fine-tuning do MLP.")
+        raise ValueError("There is not enough data for fine-tuning the MLP.")
 
     model.fit(
         X_calibration_scaled,
@@ -625,10 +519,6 @@ def fine_tune_mlp_on_calibration(base_model, X_calibration_scaled, variant):
 
 
 def train_lstm_autoencoder(normal_by_drill, scaler):
-    """
-    Treina o LSTM-AE com sequências completas construídas separadamente
-    por broca. Nenhuma sequência cruza a fronteira entre ferramentas.
-    """
     sequences = []
 
     for drill_name in sorted(normal_by_drill):
@@ -639,7 +529,7 @@ def train_lstm_autoencoder(normal_by_drill, scaler):
             sequences.append(seq)
 
     if not sequences:
-        raise ValueError("Nenhuma sequência LSTM disponível para treinamento.")
+        raise ValueError("No LSTM sequence available for training.")
 
     X_seq_train = np.vstack(sequences)
     model = create_lstm_autoencoder(X_seq_train.shape[2])
@@ -662,22 +552,6 @@ def compute_global_threshold_from_training_scores(
     normal_by_drill,
     model_type,
 ):
-    """
-    Define o threshold global a partir das brocas de treinamento.
-
-    MLP:
-      - calcula erros nos eventos normais;
-      - usa os primeiros 5 eventos como baseline local;
-      - normaliza todos os erros pela mediana dos 5 primeiros;
-      - reúne os scores normalizados;
-      - calcula P99.5.
-
-    LSTM:
-      - usa sequências causais com padding para produzir um erro por furo;
-      - os cinco primeiros furos possuem cinco erros válidos;
-      - nenhuma sequência usa informação futura;
-      - o restante do procedimento é idêntico ao MLP.
-    """
     all_normal_scores = []
     baseline_records = []
 
@@ -701,7 +575,7 @@ def compute_global_threshold_from_training_scores(
             )
 
         else:
-            raise ValueError("model_type deve ser 'mlp' ou 'lstm'.")
+            raise ValueError("model_type must be 'mlp' or 'lstm'.")
 
         normalized, baseline = normalize_by_initial_baseline(
             errors,
@@ -725,7 +599,7 @@ def compute_global_threshold_from_training_scores(
 
     if len(all_normal_scores) == 0:
         raise ValueError(
-            f"Não foi possível definir threshold global para {model_type}."
+            f"It was not possible to define a global threshold for {model_type}."
         )
 
     threshold = float(
@@ -740,8 +614,6 @@ def compute_global_threshold_from_training_scores(
         pd.DataFrame(baseline_records),
         np.asarray(all_normal_scores),
     )
-
-print("\n  [DIAGNÓSTICO DE PERSISTÊNCIA]")
 
 def diagnostic_persistence_scores(
         scores,
@@ -759,7 +631,6 @@ def diagnostic_persistence_scores(
     valid_true = y_true[start_index:]
     valid_raw = raw_alarm[start_index:]
 
-    # Maior sequência consecutiva acima do threshold
     max_run = 0
     current_run = 0
 
@@ -770,7 +641,6 @@ def diagnostic_persistence_scores(
         else:
             current_run = 0
 
-    # Primeiro crossing bruto
     raw_crossings = np.where(valid_raw == 1)[0]
 
     first_raw = (
@@ -779,7 +649,6 @@ def diagnostic_persistence_scores(
         else None
     )
 
-    # Primeiro crossing persistente
     first_persistent = None
 
     if len(valid_raw) >= window:
@@ -836,12 +705,6 @@ def diagnostic_persistence_scores(
         f"{int(valid_raw.sum())}/{len(valid_raw)}"
     )
 def save_roc_data(df_scores, score_col, output_path):
-    """Save ROC points from monitored, binary-labeled events across all drills.
-
-    Never slice a concatenated score array with [5:]: that removes calibration
-    rows only from the first drill. Filter each row by its within-drill sequence
-    position so holes 1--5 are excluded for every held-out drill.
-    """
     required = {"drill", "label", score_col}
     missing = required.difference(df_scores.columns)
     if missing:
@@ -849,9 +712,6 @@ def save_roc_data(df_scores, score_col, output_path):
             f"Cannot create ROC for {os.path.basename(output_path)}; "
             f"missing columns: {sorted(missing)}"
         )
-
-    # hole_index is the 1-based position in the aligned event sequence. Fall
-    # back to the physical hole number for older files without hole_index.
     position_col = "hole_index" if "hole_index" in df_scores.columns else "hole"
     if position_col not in df_scores.columns:
         raise KeyError(
@@ -895,7 +755,6 @@ def save_roc_data(df_scores, score_col, output_path):
 
 
 def evaluate_binary(scores_or_predictions, labels, start_index=EVAL_START_HOLE_INDEX):
-    """Métricas binárias somente a partir do sexto furo."""
     y_true = np.asarray(labels)[start_index:]
     y_pred = np.asarray(scores_or_predictions)[start_index:]
 
@@ -924,10 +783,6 @@ def evaluate_binary(scores_or_predictions, labels, start_index=EVAL_START_HOLE_I
         "n": len(y_true),
     }
 
-
-# ============================================================
-# CARREGAMENTO DO DATASET — UM ÚNICO DOMÍNIO ACÚSTICO
-# ============================================================
 drills_data = {}
 
 for drill_folder in sorted(os.listdir(ROOT_DATASET)):
@@ -968,14 +823,12 @@ for drill_folder in sorted(os.listdir(ROOT_DATASET)):
             X_drill.append(feat_a)
             hole_indices.append(hole)
         except Exception as exc:
-            print(f"[WARNING] Falha no furo {hole} de {drill_folder}: {exc}")
+            print(f"[WARNING] Failure at hole {hole} in {drill_folder}: {exc}")
 
     n_total = len(X_drill)
     if n_total == 0:
         continue
 
-    # Rótulos preservam a definição failure-aligned usada no estudo:
-    # 0 = normal, -1 = transição, 1 = região alinhada à falha observada.
     y_drill = []
     for i in range(n_total):
         life_fraction = i / n_total
@@ -995,22 +848,8 @@ for drill_folder in sorted(os.listdir(ROOT_DATASET)):
     }
 
 if len(drills_data) < 2:
-    raise ValueError("São necessárias pelo menos duas brocas para o benchmark LODO.")
+    raise ValueError("At least two drill bits are required for the LODO benchmark.")
 
-# ============================================================
-# ELEGIBILIDADE PARA O PROTOCOLO OPTION A
-# ============================================================
-# Regra final: os 5 primeiros furos são usados exclusivamente para
-# calibração local. Portanto, uma broca só pode entrar no LODO para
-# métricas de monitoramento se possuir N > 5 furos.
-#
-# IMPORTANTE:
-# - Todas as brocas continuam preservadas em `drills_data`.
-# - Brocas com N <= 5 podem continuar contribuindo para o treinamento
-#   quando atuam como parte das 19 brocas de treinamento.
-# - Elas não podem, entretanto, ser a broca deixada de fora para
-#   avaliação online, pois não existe nenhum furo posterior à calibração.
-# ============================================================
 eligibility_records = []
 
 for drill_name in sorted(drills_data):
@@ -1039,39 +878,30 @@ ineligible_drills = df_eligibility.loc[
     ~df_eligibility["eligible_for_lodo"], "drill"
 ].tolist()
 
-print("\n" + "=" * 70)
-print("ELEGIBILIDADE — OPTION A")
-print("=" * 70)
-print(f"Total de brocas carregadas:        {len(drills_data)}")
-print(f"Brocas avaliáveis (N > 5):         {len(eligible_drills)}")
-print(f"Brocas não avaliáveis (N <= 5):    {len(ineligible_drills)}")
-print(f"Furos de calibração:               {CALIBRATION_HOLES}")
-print(f"Início do monitoramento:            furo {CALIBRATION_HOLES + 1}")
-print("\nDetalhamento:")
+
+print(f"Total drills loaded:              {len(drills_data)}")
+print(f"Eligible drills (N > 5):          {len(eligible_drills)}")
+print(f"Ineligible drills (N <= 5):       {len(ineligible_drills)}")
+print(f"Calibration holes:                {CALIBRATION_HOLES}")
+print(f"Monitoring starts at:             hole {CALIBRATION_HOLES + 1}")
+print("\nDetails:")
 for row in eligibility_records:
     status = "OK" if row["eligible_for_lodo"] else "SKIP"
     print(
         f"  [{status}] {row['drill']}: "
         f"N={row['n_holes']} | "
-        f"calibração={row['calibration_holes']} | "
-        f"monitoramento={row['monitoring_holes']}"
+        f"calibration={row['calibration_holes']} | "
+        f"monitoring={row['monitoring_holes']}"
     )
-print("=" * 70)
 
-# Salva o relatório antes do LODO para deixar explícito quais brocas
-# participaram da avaliação e quais foram mantidas apenas no dataset.
 df_eligibility.to_csv(
-    os.path.join(RESULTS_DIR, "drill_eligibility.csv"),
+    os.path.join(RESULTS_DIR, "drill_eligibility_ultrasonic.csv"),
     index=False,
 )
 
-print("\nBrocas carregadas:")
 for drill_name in sorted(drills_data):
-    print(f"  {drill_name}: {len(drills_data[drill_name]['X'])} furos")
+    print(f"  {drill_name}: {len(drills_data[drill_name]['X'])} holes")
 
-# ============================================================
-# LODO — NOVO PROTOCOLO DEPLOYMENT-ORIENTED
-# ============================================================
 comparison_records = []
 continuous_mlp_data = []
 continuous_lstm_data = []
@@ -1079,8 +909,6 @@ continuous_xgb_data = []
 threshold_records = []
 metric_records = []
 
-# Resultados das três variantes de fine-tuning para MLP-AE e LSTM-AE.
-# XGBoost permanece como baseline supervisionado, sem fine-tuning de camadas.
 FINE_TUNING_VARIANTS = [
     "FT_LAST_LAYER",
     "FT_DECODER",
@@ -1089,9 +917,7 @@ FINE_TUNING_VARIANTS = [
 finetuning_metric_records = []
 finetuning_score_records = []
 
-# SOMENTE as brocas com N > 5 entram como broca de teste no LODO.
-# As demais permanecem disponíveis como dados de treinamento quando
-# fizerem parte das 19 brocas usadas para treinar outro fold.
+
 def diagnostic_persistence_scores(
         scores,
         threshold,
@@ -1109,12 +935,10 @@ def diagnostic_persistence_scores(
             scores[valid] > threshold
     ).astype(int)
 
-    # Avaliação somente a partir do furo 6
     valid_scores = scores[start_index:]
     valid_true = y_true[start_index:]
     valid_raw = raw_alarm[start_index:]
 
-    # Maior sequência consecutiva acima do threshold
     max_run = 0
     current_run = 0
 
@@ -1125,7 +949,6 @@ def diagnostic_persistence_scores(
         else:
             current_run = 0
 
-    # Primeiro crossing bruto
     raw_crossings = np.where(valid_raw == 1)[0]
 
     first_raw = (
@@ -1134,7 +957,6 @@ def diagnostic_persistence_scores(
         else None
     )
 
-    # Primeiro crossing persistente
     first_persistent = None
 
     if len(valid_raw) >= window:
@@ -1149,11 +971,10 @@ def diagnostic_persistence_scores(
                 )
                 break
 
-    # Separação entre normal e failure
     failure_mask = valid_true == 1
     normal_mask = valid_true == 0
 
-    print("  [DIAGNÓSTICO DE PERSISTÊNCIA]")
+    print("  [DIAGNOSIS OF PERSISTENCE]")
     print(f"    threshold:              {threshold:.6f}")
     print(f"    raw alarms:             {int(valid_raw.sum())}")
     print(f"    max consecutive alarms: {max_run}")
@@ -1182,9 +1003,7 @@ def diagnostic_persistence_scores(
         f"{int(valid_raw.sum())}/{len(valid_raw)}"
     )
 for drill_test in eligible_drills:
-    print("\n" + "=" * 70)
-    print(f"LODO — BROCA DE TESTE: {drill_test}")
-    print("=" * 70)
+    print(f"LODO — TEST DRILL: {drill_test}")
 
     K.clear_session()
     random.seed(SEED)
@@ -1196,25 +1015,17 @@ for drill_test in eligible_drills:
     test_holes = drills_data[drill_test]["holes"]
     n_holes = len(X_test)
 
-    # Esta condição é redundante porque `eligible_drills` já contém
-    # somente brocas com N > 5, mas permanece como proteção adicional.
     if n_holes <= CALIBRATION_HOLES:
         continue
 
-    # --------------------------------------------------------
-    # 1) TREINO GLOBAL NAS OUTRAS 19 BROCAS
-    # --------------------------------------------------------
     X_train_xgb, y_train_xgb = build_training_data(drills_data, drill_test)
     X_normal_train, normal_by_drill = build_ae_normal_training_data(
         drills_data, drill_test
     )
 
-    print(f"Treino XGBoost: {len(X_train_xgb)} eventos")
-    print(f"Treino AE normal: {len(X_normal_train)} eventos")
+    print(f"XGBoost training: {len(X_train_xgb)} events")
+    print(f"Normal AE training: {len(X_normal_train)} events")
 
-    # --------------------------------------------------------
-    # 2) XGBOOST — MODELO SUPERVISIONADO
-    # --------------------------------------------------------
     scaler_xgb = StandardScaler()
     X_train_xgb_sc = scaler_xgb.fit_transform(X_train_xgb)
     X_test_xgb_sc = scaler_xgb.transform(X_test)
@@ -1232,14 +1043,10 @@ for drill_test in eligible_drills:
     xgb_probs = xgb.predict_proba(X_test_xgb_sc)[:, 1]
     raw_alarm_xgb = (xgb_probs >= XGB_THRESHOLD).astype(int)
 
-    # --------------------------------------------------------
-    # 3) MLP-AE — TREINADO NAS 19 BROCAS, NORMAL APENAS
-    # --------------------------------------------------------
     scaler_mlp, mlp_ae = train_mlp_autoencoder(
         X_normal_train, X_normal_train.shape[1]
     )
 
-    # Threshold global previamente definido usando as 19 brocas.
     threshold_mlp, baseline_train_mlp, train_scores_mlp = (
         compute_global_threshold_from_training_scores(
             mlp_ae,
@@ -1252,7 +1059,6 @@ for drill_test in eligible_drills:
     X_test_mlp_sc = scaler_mlp.transform(X_test)
     mlp_test_errors = reconstruction_errors_mlp(mlp_ae, X_test_mlp_sc)
 
-    # Calibração específica da broca de teste: primeiros 5 furos.
     mlp_scores_test, baseline_mlp_test = normalize_by_initial_baseline(
         mlp_test_errors
     )
@@ -1260,105 +1066,7 @@ for drill_test in eligible_drills:
         mlp_scores_test > threshold_mlp
     ).astype(int)
     raw_alarm_mlp[:CALIBRATION_HOLES] = 0
-    # def diagnostic_persistence_scores(
-    #         scores,
-    #         threshold,
-    #         y_true,
-    #         start_index=EVAL_START_HOLE_INDEX,
-    #         window=PERSISTENCE_W,
-    # ):
-    #     scores = np.asarray(scores, dtype=float)
-    # y_true = np.asarray(y_true, dtype=int)
-    #
-    # raw_alarm = np.zeros(len(scores), dtype=int)
-    #
-    # valid = np.isfinite(scores)
-    # raw_alarm[valid] = (
-    #         scores[valid] > threshold
-    # ).astype(int)
-    #
-    # # Ignora os 5 furos de calibração
-    # valid_scores = scores[start_index:]
-    # valid_true = y_true[start_index:]
-    # valid_raw = raw_alarm[start_index:]
 
-    # --------------------------------------------------------
-    # Maior sequência consecutiva acima do threshold
-    # --------------------------------------------------------
-    # max_run = 0
-    # current_run = 0
-    #
-    # for value in valid_raw:
-    #     if value == 1:
-    #         current_run += 1
-    #         max_run = max(max_run, current_run)
-    #     else:
-    #         current_run = 0
-
-    # --------------------------------------------------------
-    # Primeiro crossing bruto
-    # --------------------------------------------------------
-    # raw_crossings = np.where(valid_raw == 1)[0]
-    #
-    # first_raw = (
-    #     int(raw_crossings[0] + start_index + 1)
-    #     if len(raw_crossings) > 0
-    #     else None
-    # )
-
-    # --------------------------------------------------------
-    # Primeiro crossing persistente
-    # --------------------------------------------------------
-    # first_persistent = None
-    #
-    # if len(valid_raw) >= window:
-    #     for i in range(window - 1, len(valid_raw)):
-    #         current = valid_raw[
-    #             i - window + 1 : i + 1
-    #         ]
-    #
-    #         if np.all(current == 1):
-    #             first_persistent = int(
-    #                 i + start_index + 1
-    #             )
-    #             break
-
-    # --------------------------------------------------------
-    # Separação dos scores por estado
-    # --------------------------------------------------------
-    # failure_mask = valid_true == 1
-    # normal_mask = valid_true == 0
-    #
-    # print("  [DIAGNÓSTICO DE PERSISTÊNCIA]")
-    # print(f"    threshold:              {threshold:.6f}")
-    # print(f"    raw alarms:             {int(valid_raw.sum())}")
-    # print(f"    max consecutive alarms: {max_run}")
-    # print(f"    first raw crossing:     {first_raw}")
-    # print(f"    first persistent:       {first_persistent}")
-    #
-    # if np.any(normal_mask):
-    #     print(
-    #         f"    normal max score:       "
-    #         f"{np.nanmax(valid_scores[normal_mask]):.6f}"
-    #     )
-    #
-    # if np.any(failure_mask):
-    #     print(
-    #         f"    failure max score:      "
-    #         f"{np.nanmax(valid_scores[failure_mask]):.6f}"
-    #     )
-    #
-    #     print(
-    #         f"    failure mean score:     "
-    #         f"{np.nanmean(valid_scores[failure_mask]):.6f}"
-    #     )
-    #
-    # print(
-    #     f"    scores > threshold:     "
-    #     f"{int(valid_raw.sum())}/{len(valid_raw)}"
-    # )
-    # DIAGNÓSTICO DO THRESHOLD — MLP
-    # ============================================================
     calibration_errors_mlp = mlp_test_errors[:CALIBRATION_HOLES]
     calibration_median_mlp = baseline_mlp_test
 
@@ -1414,10 +1122,7 @@ for drill_test in eligible_drills:
         threshold_mlp,
         y_test,
     )
-    # --------------------------------------------------------
-    # 4) LSTM-AE — TREINADO NAS 19 BROCAS, SEQUÊNCIAS SEPARADAS
-    # --------------------------------------------------------
-    # O scaler é ajustado somente nos eventos normais das 19 brocas.
+
     scaler_lstm = StandardScaler()
     scaler_lstm.fit(X_normal_train)
 
@@ -1437,10 +1142,6 @@ for drill_test in eligible_drills:
 
     X_test_lstm_sc = scaler_lstm.transform(X_test)
 
-    # Option B:
-    # uma sequência causal válida é construída para cada furo,
-    # incluindo os cinco primeiros furos de calibração.
-    # Nenhuma sequência utiliza observações futuras.
     X_test_seq_lstm = create_padded_causal_sequences(
         X_test_lstm_sc,
         SEQ_LEN,
@@ -1465,8 +1166,7 @@ for drill_test in eligible_drills:
         lstm_scores_test[valid_lstm] > threshold_lstm
     ).astype(int)
     raw_alarm_lstm[:CALIBRATION_HOLES] = 0
-    # DIAGNÓSTICO DO THRESHOLD — LSTM
-    # ============================================================
+
     calibration_errors_lstm = lstm_test_errors[:CALIBRATION_HOLES]
     calibration_median_lstm = baseline_lstm_test
 
@@ -1522,17 +1222,6 @@ for drill_test in eligible_drills:
         threshold_lstm,
         y_test,
     )
-    # --------------------------------------------------------
-    # 5) FINE-TUNING — MLP-AE E LSTM-AE COM OS 5 PRIMEIROS FUROS
-    # --------------------------------------------------------
-    # O modelo base foi treinado somente nas brocas de treinamento.
-    # Para cada variante, criamos uma cópia independente dos pesos
-    # pré-treinados e adaptamos somente com os cinco primeiros furos
-    # da broca de teste, sem utilizar rótulos.
-    #
-    # O monitoramento (furo 6+) nunca participa do fine-tuning.
-    # O threshold global de cada modelo é calculado ANTES do fine-tuning
-    # e permanece fixo entre as variantes para manter a comparação controlada.
 
     X_calibration_mlp_sc = X_test_mlp_sc[:CALIBRATION_HOLES]
     X_calibration_lstm_sc = X_test_lstm_sc[:CALIBRATION_HOLES]
@@ -1611,9 +1300,7 @@ for drill_test in eligible_drills:
             f"Recall={ft_mlp_metrics['recall']:.3f}"
         )
 
-        print("\n" + "-" * 60)
         print(f"LSTM-AE fine-tuning: {variant}")
-        print("-" * 60)
 
         ft_lstm_model = fine_tune_lstm_on_calibration(
             lstm_ae,
@@ -1690,16 +1377,10 @@ for drill_test in eligible_drills:
             f"Recall={ft_lstm_metrics['recall']:.3f}"
         )
 
-    # --------------------------------------------------------
-    # 6) PERSISTÊNCIA W=2, SOMENTE A PARTIR DO FURO 6
-    # --------------------------------------------------------
     pred_xgb = persistence_alarm(raw_alarm_xgb)
     pred_mlp = persistence_alarm(raw_alarm_mlp)
     pred_lstm = persistence_alarm(raw_alarm_lstm)
 
-    # --------------------------------------------------------
-    # 7) SALVA THRESHOLDS E BASELINES
-    # --------------------------------------------------------
     threshold_records.append(
         {
             "drill_test": drill_test,
@@ -1716,9 +1397,6 @@ for drill_test in eligible_drills:
         }
     )
 
-    # --------------------------------------------------------
-    # 8) SÉRIES CONTÍNUAS — MANTÉM FUROS 1..N NOS GRÁFICOS
-    # --------------------------------------------------------
     for i in range(n_holes):
         hole = test_holes[i]
         is_calibration = i < CALIBRATION_HOLES
@@ -1788,9 +1466,6 @@ for drill_test in eligible_drills:
             }
         )
 
-    # --------------------------------------------------------
-    # 9) MÉTRICAS POR BROCA — SOMENTE FURO 6+
-    # --------------------------------------------------------
     mlp_metrics = evaluate_binary(pred_mlp, y_test)
     lstm_metrics = evaluate_binary(pred_lstm, y_test)
     xgb_metrics = evaluate_binary(pred_xgb, y_test)
@@ -1809,9 +1484,6 @@ for drill_test in eligible_drills:
         f"XGB F1={xgb_metrics['f1']:.3f}"
     )
 
-# ============================================================
-# DATAFRAMES FINAIS
-# ============================================================
 df_models = pd.DataFrame(comparison_records)
 df_mlp = pd.DataFrame(continuous_mlp_data)
 df_lstm = pd.DataFrame(continuous_lstm_data)
@@ -1823,34 +1495,26 @@ df_finetuning_scores = pd.DataFrame(finetuning_score_records)
 
 if df_models.empty:
     raise ValueError(
-        "Nenhuma broca apresentou pelo menos 6 furos para o protocolo "
-        "de calibração + monitoramento."
+        "No drill produced at least 6 holes for the calibration + monitoring protocol."
     )
 
-# ============================================================
-# ROC — SOMENTE FUROS 6+
-# ============================================================
 save_roc_data(
     df_mlp,
     "normalized_score",
-    os.path.join(RESULTS_DIR, "ultrasonic_mlp_roc_data_option_A.csv"),
+    os.path.join(RESULTS_DIR, "ultrasonic_mlp_roc_data.csv"),
 )
 
 save_roc_data(
     df_lstm,
     "normalized_score",
-    os.path.join(RESULTS_DIR, "ultrasonic_lstm_roc_data_option_A.csv"),
+    os.path.join(RESULTS_DIR, "ultrasonic_lstm_roc_data.csv"),
 )
 
 save_roc_data(
     df_xgb,
     "score",
-    os.path.join(RESULTS_DIR, "ultrasonic_xgboost_roc_data_option_A.csv"),
+    os.path.join(RESULTS_DIR, "ultrasonic_xgboost_roc_data.csv"),
 )
-
-# ============================================================
-# ROC — TRÊS VARIANTES DE FINE-TUNING PARA MLP E LSTM
-# ============================================================
 for model_name in ["MLP-AE", "LSTM-AE"]:
     model_tag = "mlp" if model_name == "MLP-AE" else "lstm"
     for variant in FINE_TUNING_VARIANTS:
@@ -1865,13 +1529,9 @@ for model_name in ["MLP-AE", "LSTM-AE"]:
                 "normalized_score",
                 os.path.join(
                     RESULTS_DIR,
-                    f"ultrasonic_{model_tag}_{variant.lower()}_roc_data_option_A.csv",
+                    f"ultrasonic_{model_tag}_{variant.lower()}_roc_data.csv",
                 ),
             )
-
-# ============================================================
-# MERGE COM ESCUTA MANUAL
-# ============================================================
 df_final = pd.merge(
     df_models,
     df_listening,
@@ -1879,202 +1539,65 @@ df_final = pd.merge(
     how="inner",
 )
 
-print("\n" + "=" * 70)
-print(f"Total de furos nos modelos:      {len(df_models)}")
-print(f"Total de furos na escuta:        {len(df_listening)}")
-print(f"Total após merge:                 {len(df_final)}")
+print(f"Total of holes in the models:      {len(df_models)}")
+print(f"Total of holes in the listening:   {len(df_listening)}")
+print(f"Total after merge:                 {len(df_final)}")
 print(
-    f"Brocas avaliadas: {df_models['drill'].nunique()} / "
+    f"Drills evaluated: {df_models['drill'].nunique()} / "
     f"{len(drills_data)}"
 )
-print("=" * 70 + "\n")
 
 if df_final.empty:
     raise ValueError(
-        "ERRO CRÍTICO: O merge entre os modelos e a escuta manual resultou em dataframe vazio."
+        "CRITICAL ERROR: The merge between the models and the manual review data resulted in an empty dataframe."
     )
 
-# ============================================================
-# SALVAMENTO
-# ============================================================
 df_mlp.to_csv(
-    os.path.join(RESULTS_DIR, "results_autoencoder_ultrasonic_option_A.csv"),
+    os.path.join(RESULTS_DIR, "results_autoencoder_ultrasonic.csv"),
     index=False,
 )
 df_lstm.to_csv(
-    os.path.join(RESULTS_DIR, "results_LSTM_ultrasonic_option_A.csv"),
+    os.path.join(RESULTS_DIR, "results_LSTM_ultrasonic.csv"),
     index=False,
 )
 df_xgb.to_csv(
-    os.path.join(RESULTS_DIR, "results_xgboost_ultrasonic_option_A.csv"),
+    os.path.join(RESULTS_DIR, "results_xgboost_ultrasonic.csv"),
     index=False,
 )
 df_models.to_csv(
-    os.path.join(RESULTS_DIR, "results_comparison_ultrasonic_option_A.csv"),
+    os.path.join(RESULTS_DIR, "results_comparison_ultrasonic.csv"),
     index=False,
 )
 df_thresholds.to_csv(
-    os.path.join(RESULTS_DIR, "thresholds_ultrasonic_option_A.csv"),
+    os.path.join(RESULTS_DIR, "thresholds_ultrasonic.csv"),
     index=False,
 )
 df_metrics.to_csv(
-    os.path.join(RESULTS_DIR, "metrics_per_drill_ultrasonic_option_A.csv"),
+    os.path.join(RESULTS_DIR, "metrics_per_drill_ultrasonic.csv"),
     index=False,
 )
 
 df_finetuning_metrics.to_csv(
     os.path.join(
         RESULTS_DIR,
-        "metrics_per_drill_mlp_lstm_finetuning_3_variants_ultrasonic_option_A.csv",
+        "metrics_per_drill_mlp_lstm_finetuning_3_variants_ultrasonic.csv",
     ),
     index=False,
 )
 df_finetuning_scores.to_csv(
     os.path.join(
         RESULTS_DIR,
-        "results_MLP_LSTM_finetuning_3_variants_ultrasonic_option_A.csv",
+        "results_MLP_LSTM_finetuning_3_variants_ultrasonic.csv",
     ),
     index=False,
 )
 
-# ============================================================
-# GRÁFICO DE SENSIBILIDADE POR SEVERIDADE HUMANA
-# Mantido apenas para comparação descritiva.
-# ============================================================
-if "human_severity_score" in df_final.columns:
-    plt.rcParams.update(
-        {
-            "font.family": "serif",
-            "font.serif": ["Times New Roman"],
-            "font.size": 9,
-            "axes.labelweight": "bold",
-            "pdf.fonttype": 42,
-            "ps.fonttype": 42,
-        }
-    )
-
-    grouped = (
-        df_final.groupby("human_severity_score")[
-            ["alarm_xgb", "alarm_mlp", "alarm_lstm"]
-        ]
-        .mean()
-        * 100
-    )
-
-    grouped.columns = [
-        "Supervised (XGBoost)",
-        "Semi-Supervised (MLP-AE)",
-        "Semi-Supervised (LSTM-AE)",
-    ]
-
-    severity_labels = {
-        0: "Level 0:\nNormal",
-        1: "Level 1:\nIncipient Anom.",
-        2: "Level 2:\nSevere Pre-Fail.",
-        3: "Level 3:\nCritical Fail.",
-    }
-    grouped.index = [severity_labels.get(i, f"Level {i}") for i in grouped.index]
-
-    fig, ax = plt.subplots(figsize=(3.8, 3.8))
-    colors = ["#e67e22", "#008000", "#7209b7"]
-
-    grouped.plot(
-        kind="bar",
-        ax=ax,
-        color=colors,
-        edgecolor="black",
-        linewidth=0.5,
-        width=0.75,
-    )
-
-    for p in ax.patches:
-        height = p.get_height()
-        ax.text(
-            p.get_x() + p.get_width() / 2.0,
-            max(height, 0) + 2.0,
-            f"{height:.1f}%",
-            ha="center",
-            va="bottom",
-            fontsize=7.5,
-            weight="bold",
-            rotation=90,
-        )
-
-    ax.set_ylim(0, 130)
-    ax.set_ylabel("Observed Alarm Rate (%)", fontsize=9)
-    ax.set_xlabel("Operational Acoustic Severity Levels", fontsize=9, labelpad=6)
-    plt.setp(ax.get_xticklabels(), rotation=15, ha="right", fontsize=8)
-    plt.setp(ax.get_yticklabels(), fontsize=8)
-    ax.legend(loc="upper left", fontsize=7.5, frameon=True)
-    plt.grid(True, axis="y", linestyle=":", alpha=0.4)
-    fig.subplots_adjust(bottom=0.22, left=0.16, right=0.96, top=0.92)
-
-    plt.savefig(
-        os.path.join(PLOTS_DIR, "multimodel_audio_severity_comparison_option_A.pdf"),
-        dpi=600,
-    )
-    plt.savefig(
-        os.path.join(PLOTS_DIR, "multimodel_audio_severity_comparison_option_A.png"),
-        dpi=300,
-    )
-    plt.close()
-
-# ============================================================
-# RESUMO DO PROTOCOLO
-# ============================================================
-print("\n" + "=" * 70)
-print("PROTOCOLO OPTION A FINALIZADO")
-print("=" * 70)
-print(f"Calibração inicial: {CALIBRATION_HOLES} furos")
-print(f"Início da avaliação: furo {CALIBRATION_HOLES + 1}")
-print(f"Persistência: W={PERSISTENCE_W} furos")
-print(f"Threshold AE: percentil {THRESHOLD_PERCENTILE}%")
-print(
-    "Threshold AE: definido a partir dos eventos normais válidos "
-    "das brocas de treinamento"
-)
-print(
-    "AE: treinamento somente com eventos normais das brocas de treinamento"
-)
-print(
-    "LSTM: treinamento com sequências completas por broca; "
-    "calibração de teste com sequências causais com padding"
-)
-print("Gráficos/series: furos 1..N mantidos; fase de calibração explicitamente marcada")
-print("=" * 70)
-print(f"Resultados salvos em: {RESULTS_DIR}")
-print(" - results_autoencoder_ultrasonic.csv")
-print(" - metrics_per_drill_mlp_lstm_finetuning_3_variants_ultrasonic_option_A.csv")
-print(" - results_MLP_LSTM_finetuning_3_variants_ultrasonic_option_A.csv")
-print(" - ultrasonic_mlp_ft_last_layer_roc_data_option_A.csv")
-print(" - ultrasonic_lstm_ft_last_layer_roc_data_option_A.csv")
-print(" - ultrasonic_mlp_ft_decoder_roc_data_option_A.csv")
-print(" - ultrasonic_lstm_ft_decoder_roc_data_option_A.csv")
-print(" - ultrasonic_mlp_ft_all_low_lr_roc_data_option_A.csv")
-print(" - ultrasonic_lstm_ft_all_low_lr_roc_data_option_A.csv")
-print(" - results_LSTM_ultrasonic.csv")
-print(" - results_xgboost_ultrasonic.csv")
-print(" - results_comparison_ultrasonic.csv")
-print(" - thresholds_ultrasonic_option_A.csv")
-print(" - metrics_per_drill_ultrasonic_option_A.csv")
-print(" - drill_eligibility.csv")
-print(" - ultrasonic_mlp_roc_data.csv")
-print(" - ultrasonic_lstm_roc_data.csv")
-print(" - ultrasonic_xgboost_roc_data.csv")
-print(" - multimodel_audio_severity_comparison.png/.pdf")
-
-
-# ============================================================
-# EXPORT: PER-DRILL BASELINE / FINE-TUNING RESULTS
-# ============================================================
-
 if "results" in globals():
     try:
         pd.DataFrame(RESULTS_DIR).to_csv(
-            "fine_tuning_per_drill_results.csv",
+            "fine_tuning_per_drill_results_ultrasonic.csv",
             index=False
         )
-        print("\nSaved: fine_tuning_per_drill_results.csv")
+        print("\nSaved: fine_tuning_per_drill_results_ultrasonic.csv")
     except Exception as exc:
         print(f"\nCould not save results CSV: {exc}")
-
