@@ -442,7 +442,7 @@ def main() -> None:
         f.write("AUC is calculated from continuous scores, not thresholded predictions.\n")
         f.write("Fine-tuning comparisons use paired per-drill F1 where both base and fine-tuned results are available.\n")
         f.write("Wilcoxon p-values are exploratory; Holm adjustment is applied within each sensing domain across available comparisons.\n")
-        
+
 
 if __name__ == "__main__":
     main()
