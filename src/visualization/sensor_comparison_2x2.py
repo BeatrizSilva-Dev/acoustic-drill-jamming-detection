@@ -38,19 +38,22 @@ files_to_plot = [
 if None in files_to_plot:
     print("ERROR: One or more audio files were not found. Check the folder names.")
 else:
+    # Fontes aumentadas globalmente para padrão de publicação nítida
     plt.rcParams.update({
         'font.family': 'serif',
-        'font.serif': ['Times New Roman'],
-        'font.size': 10,
-        'axes.labelsize': 10,
-        'xtick.labelsize': 9,
-        'ytick.labelsize': 9,
+        'font.serif': ['Times New Roman', 'DejaVu Serif'],
+        'font.size': 12,
+        'axes.labelsize': 12,
+        'axes.titlesize': 13,
+        'xtick.labelsize': 11,
+        'ytick.labelsize': 11,
         'axes.labelweight': 'bold',
         'pdf.fonttype': 42,
         'ps.fonttype': 42
     })
 
-    fig, axes = plt.subplots(2, 2, figsize=(6.8, 4.8))
+    # Proporção ligeiramente mais ampla para acomodar fontes maiores sem espremer
+    fig, axes = plt.subplots(2, 2, figsize=(7.2, 5.2))
 
     labels = [
         '(a) Audible - Hole 1',
@@ -83,14 +86,15 @@ else:
             vmax=0
         )
 
-        ax.set_title(labels[i], fontsize=10, pad=6)
+        # Título de cada subplot em negrito e maior
+        ax.set_title(labels[i], fontsize=12, fontweight='bold', pad=7)
 
         if row == 0:  # Audible row
             ax.set_ylim(0, 20000)
-            ax.set_ylabel('Frequency (Hz)')
+            ax.set_ylabel('Frequency (Hz)', fontweight='bold')
         else:         # Ultrasonic row
             ax.set_ylim(0, 48000)
-            ax.set_ylabel('Frequency (Hz)')
+            ax.set_ylabel('Frequency (Hz)', fontweight='bold')
 
         if col == 1:
             ax.set_ylabel('')
@@ -98,24 +102,24 @@ else:
         if row == 0:
             ax.set_xlabel('')
         else:
-            ax.set_xlabel('Time (s)')
+            ax.set_xlabel('Time (s)', fontweight='bold')
 
     plt.subplots_adjust(
-        left=0.11,
-        right=0.88,
+        left=0.12,
+        right=0.86,
         top=0.92,
-        bottom=0.11,
-        hspace=0.28,
-        wspace=0.22
+        bottom=0.12,
+        hspace=0.32,
+        wspace=0.20
     )
 
-    cbar_ax = fig.add_axes([0.90, 0.11, 0.02, 0.81])
+    cbar_ax = fig.add_axes([0.88, 0.12, 0.025, 0.80])
 
     cbar = fig.colorbar(img, cax=cbar_ax, format="%+2.0f dB")
-    cbar.set_label('Intensity (dB)', weight='bold')
-    cbar.ax.tick_params(labelsize=9)
+    cbar.set_label('Intensity (dB)', weight='bold', fontsize=12)
+    cbar.ax.tick_params(labelsize=11)
 
-    output_filename = "sensor_comparison_2x2.pdf"
-
-    plt.savefig(output_filename, dpi=400, bbox_inches='tight')
+    # Salva em PDF vetorial (ideal para o Overleaf) e em PNG de alta resolução (600 DPI)
+    plt.savefig("sensor_comparison_2x2.pdf", bbox_inches='tight', pad_inches=0.03)
+    plt.savefig("sensor_comparison_2x2.png", dpi=600, bbox_inches='tight', pad_inches=0.03)
     plt.close()
