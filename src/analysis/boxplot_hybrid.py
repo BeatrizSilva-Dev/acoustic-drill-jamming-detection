@@ -1,34 +1,28 @@
-"""Hybrid Option A: per-drill event-level F1 boxplot and paired Wilcoxon tests.
-
-Run from anywhere inside the project. Requires numpy, pandas, matplotlib, scipy.
-Uses FINAL exported predictions (including W=2 persistence); does not refit models.
-"""
 from pathlib import Path
 import re
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.patches import Patch
 from scipy.stats import wilcoxon
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 MODEL_FILES = {
-    "LSTM-AE": "results_LSTM_hybrid_option_A.csv",
-    "MLP-AE": "results_autoencoder_hybrid_option_A.csv",
-    "XGBoost": "results_xgboost_hybrid_option_A.csv",
+    "LSTM-AE": "results_LSTM_hybrid.csv",
+    "MLP-AE": "results_autoencoder_hybrid.csv",
+    "XGBoost": "results_xgboost_hybrid.csv",
 }
 ORDER = list(MODEL_FILES)
 COLORS = {"LSTM-AE": "#7209b7", "MLP-AE": "#2b9f97", "XGBoost": "#e67e22"}
-EXPECTED_COUNTS = (20, 458, 305, 153)  # drills, eligible events, normal, failure-aligned
+EXPECTED_COUNTS = (20, 458, 305, 153)
 STRICT_EXPECTED_COUNTS = True
-OUTPUT_STEM = "hybrid_option_A_per_drill_F1"
+OUTPUT_STEM = "hybrid_per_drill_F1"
 
 
 def project_root():
     for candidate in (SCRIPT_DIR, *SCRIPT_DIR.parents):
         if (candidate / "data" / "results").is_dir():
             return candidate
-    raise FileNotFoundError("Pasta data/results não encontrada nos diretórios superiores ao script.")
+    raise FileNotFoundError("The data/results folder was not found in the directories above the script.")
 
 
 def drill_sort_key(s):
@@ -38,34 +32,32 @@ def drill_sort_key(s):
 
 def load_and_filter(path, model):
     if not path.is_file():
-        raise FileNotFoundError(f"Arquivo ausente: {path}")
+        raise FileNotFoundError(f"Missing file: {path}")
     df = pd.read_csv(path)
     if "label" not in df and "label_real" in df:
         df = df.rename(columns={"label_real": "label"})
     required = {"drill", "hole", "label", "prediction"}
     missing = required - set(df.columns)
     if missing:
-        raise ValueError(f"{model}: faltam colunas {sorted(missing)} em {path.name}")
+        raise ValueError(f"{model}: There are missing columns {sorted(missing)} in {path.name}")
     df = df.copy()
     df["drill"] = df["drill"].astype(str).str.lower().str.strip()
     for c in ("hole", "label", "prediction"):
         df[c] = pd.to_numeric(df[c], errors="coerce")
     if df[["hole", "label"]].isna().any().any():
-        raise ValueError(f"{model}: hole/label contém valores ausentes ou inválidos.")
+        raise ValueError(f"{model}: hole/label contains missing or invalid values.")
     if df.duplicated(["drill", "hole"]).any():
-        raise ValueError(f"{model}: há pares (drill, hole) duplicados.")
+        raise ValueError(f"{model}: there are duplicate pairs (drill, hole).")
     if not df["label"].isin([-1, 0, 1]).all():
-        raise ValueError(f"{model}: labels inesperados; esperado -1, 0 ou 1.")
+        raise ValueError(f"{model}: unexpected labels; expected -1, 0 or 1.")
     # Physical hole numbers, not row indices. First five holes reserved for calibration.
     eligible = df.loc[(df["hole"] >= 6) & df["label"].isin([0, 1])].copy()
     if eligible.empty:
-        raise ValueError(f"{model}: nenhum evento elegível após o filtro.")
+        raise ValueError(f"{model}: no eligible events after filter.")
     if eligible["prediction"].isna().any() or not eligible["prediction"].isin([0, 1]).all():
-        raise ValueError(f"{model}: prediction ausente/não binária nos eventos elegíveis.")
+        raise ValueError(f"{model}: missing/non-binary prediction on eligible events.")
     eligible[["hole", "label", "prediction"]] = eligible[["hole", "label", "prediction"]].astype(int)
     return eligible.sort_values(["drill", "hole"]).reset_index(drop=True)
-
-
 def per_drill_f1(df, model):
     records = []
     for drill, g in df.groupby("drill", sort=False):
@@ -76,12 +68,11 @@ def per_drill_f1(df, model):
         fn = int(((yt == 1) & (yp == 0)).sum())
         tn = int(((yt == 0) & (yp == 0)).sum())
         denom = 2 * tp + fp + fn
-        f1 = 2 * tp / denom if denom else 0.0  # zero_division=0
+        f1 = 2 * tp / denom if denom else 0.0
         records.append(dict(drill=drill, model=model, f1_score=f1,
                             n_events=len(g), n_normal=int((yt == 0).sum()),
                             n_failure=int((yt == 1).sum()), TN=tn, FP=fp, FN=fn, TP=tp))
     return pd.DataFrame(records)
-
 
 def holm_adjust(pvalues):
     p = np.asarray(pvalues, dtype=float)
@@ -90,7 +81,6 @@ def holm_adjust(pvalues):
     adjusted = np.empty_like(p)
     adjusted[idx] = np.minimum(1.0, adjusted_sorted)
     return adjusted
-
 
 def paired_tests(wide):
     pairs = [("LSTM-AE", "MLP-AE"), ("LSTM-AE", "XGBoost"), ("MLP-AE", "XGBoost")]
@@ -102,10 +92,9 @@ def paired_tests(wide):
         if effective == 0:
             statistic, p = 0.0, 1.0
         else:
-            # Two-sided, paired; scipy selects exact/permutation/approx as appropriate.
             result = wilcoxon(x, y, zero_method="wilcox", alternative="two-sided", method="auto")
             statistic, p = float(result.statistic), float(result.pvalue)
-        rows.append(dict(configuration="Hybrid Option A", comparison=f"{a} vs {b}",
+        rows.append(dict(configuration="Hybrid", comparison=f"{a} vs {b}",
                          n_pairs=len(x), n_nonzero=effective, W_statistic=statistic,
                          p_raw=p, median_paired_difference=float(np.median(diff))))
     result = pd.DataFrame(rows)
@@ -127,7 +116,6 @@ def plot_boxplot(long_df, output_dir):
                     capprops={"linewidth": 0.85})
     for patch, m in zip(bp["boxes"], ORDER):
         patch.set_facecolor(COLORS[m]); patch.set_alpha(0.68)
-    # Deterministic jitter: all 20 physical drill observations visible, reproducible.
     rng = np.random.default_rng(2027)
     for i, m in enumerate(ORDER, start=1):
         vals = long_df.loc[long_df.model == m, "f1_score"].to_numpy(float)
@@ -152,38 +140,37 @@ def plot_boxplot(long_df, output_dir):
 def main():
     root = project_root()
     results_dir = root / "data" / "results"
-    out_dir = root / "plots" / "hybrid_option_A_boxplot"
+    out_dir = root / "plots" / "hybrid_boxplot"
     out_dir.mkdir(parents=True, exist_ok=True)
     dfs = {m: load_and_filter(results_dir / f, m) for m, f in MODEL_FILES.items()}
-    # Ensure all three models were evaluated on exactly the same events and true labels.
     reference = dfs[ORDER[0]][["drill", "hole", "label"]].reset_index(drop=True)
     for m in ORDER[1:]:
         other = dfs[m][["drill", "hole", "label"]].reset_index(drop=True)
         if not reference.equals(other):
-            raise ValueError(f"{m}: eventos elegíveis/labels não coincidem com {ORDER[0]}.")
+            raise ValueError(f"{m}: eligible events/labels do not match {ORDER[0]}.")
     counts = (reference.drill.nunique(), len(reference), int((reference.label == 0).sum()),
               int((reference.label == 1).sum()))
-    print(f"LODO Hybrid Option A: {counts[0]} drills; {counts[1]} eligible events "
+    print(f"LODO Hybrid: {counts[0]} drills; {counts[1]} eligible events "
           f"({counts[2]} normal, {counts[3]} failure-aligned).")
     if counts != EXPECTED_COUNTS:
-        msg = f"Contagens diferem das esperadas {EXPECTED_COUNTS}: obtidas {counts}."
+        msg = f"Counts differ from the expected {EXPECTED_COUNTS}: obtained {counts}."
         if STRICT_EXPECTED_COUNTS:
-            raise ValueError(msg + " Verifique o protocolo e os CSVs antes de publicar.")
+            raise ValueError(msg + "Check the protocol and the CSVs before publishing.")
         print("WARNING:", msg)
     long_df = pd.concat([per_drill_f1(dfs[m], m) for m in ORDER], ignore_index=True)
     wide = long_df.pivot(index="drill", columns="model", values="f1_score").reindex(columns=ORDER)
     if wide.isna().any().any() or len(wide) != counts[0]:
-        raise ValueError("F1 ausente para alguma broca/modelo; comparação pareada inválida.")
+        raise ValueError("F1 unavailable for some drill/model; invalid pairwise comparison.")
     wide = wide.loc[sorted(wide.index, key=drill_sort_key)]
-    long_df.to_csv(results_dir / "hybrid_option_A_per_drill_F1.csv", index=False)
-    wide.to_csv(results_dir / "hybrid_option_A_paired_per_drill_F1.csv", index_label="drill")
+    long_df.to_csv(results_dir / "hybrid_per_drill_F1.csv", index=False)
+    wide.to_csv(results_dir / "hybrid_paired_per_drill_F1.csv", index_label="drill")
     stats = paired_tests(wide)
-    stats.to_csv(results_dir / "hybrid_option_A_wilcoxon_holm.csv", index=False)
+    stats.to_csv(results_dir / "hybrid_wilcoxon_holm.csv", index=False)
     summary = long_df.groupby("model").f1_score.agg(["count", "mean", "median", "std", "min", "max"]).reindex(ORDER)
-    summary.to_csv(results_dir / "hybrid_option_A_per_drill_F1_summary.csv")
+    summary.to_csv(results_dir / "hybrid_per_drill_F1_summary.csv")
     plot_boxplot(long_df, out_dir)
     print("\nPer-drill F1 summary:\n", summary.to_string(float_format=lambda v: f"{v:.4f}"))
-    print("\nPaired two-sided Wilcoxon (Holm corrected):\n",
+    print("\nPaired two-sided Wilcoxon:\n",
           stats.to_string(index=False, float_format=lambda v: f"{v:.5f}"))
     print(f"\nFigures: {out_dir / (OUTPUT_STEM + '.pdf')} and PNG")
     print(f"Tables: {results_dir}")
