@@ -1,19 +1,3 @@
-"""Evolução temporal Hybrid: resultados finais LODO, sem recalibrar o teste.
-
-Dependências: numpy, pandas, matplotlib.
-Execute a partir de qualquer pasta; o script procura a raiz que contém data/results.
-
-A coluna prediction DEVE ser o alarme definitivo já persistido (W=2).
-Para desenhar os limiares dos AEs, exporte-os no CSV de resultados
-(coluna threshold ou normalized_threshold, repetida nas linhas do fold) OU em
- data/results/thresholds_hybrid_option_A.csv com colunas drill_test, threshold_mlp, threshold_lstm.
-Para os X vermelhos, associa a numeração renomeada dos CSVs à pasta
-original em data/segmented, lê o jams.txt individual e converte intervalos
-sucessivos em posições acumuladas. Exceções com posições absolutas são
-configuráveis. Alternativamente, usa is_jam do CSV quando disponível.
-Sem limiar exportado, a curva e os alarmes são desenhados, mas não uma
-linha de limiar inventada. Não se recalcula percentil na broca de teste.
-"""
 from pathlib import Path
 import re
 import warnings
@@ -24,9 +8,9 @@ from matplotlib.ticker import MaxNLocator
 from matplotlib.lines import Line2D
 
 CALIBRATION_HOLES = 5
-PERSISTENCE_W = 2  # documentação: NÃO reaplicar ao campo prediction
+PERSISTENCE_W = 2
 SHOW_FIGURES = False
-CHECK_EXPECTED_COUNTS = True  # apenas aviso se os CSVs não forem a versão da Tabela 2
+CHECK_EXPECTED_COUNTS = True
 EXPECTED_HYBRID = {
     "LSTM-AE": (285, 20, 56, 97),
     "MLP-AE": (294, 11, 100, 53),
@@ -36,23 +20,21 @@ EXPECTED_HYBRID = {
 ROOT = Path(__file__).resolve().parent
 while not (ROOT / "data").is_dir():
     if ROOT.parent == ROOT:
-        raise FileNotFoundError("Não foi encontrada a raiz do projeto com a pasta data.")
+        raise FileNotFoundError("The project root containing the 'data' folder was not found.")
     ROOT = ROOT.parent
 RESULTS = ROOT / "data" / "results"
-OUTPUT = ROOT / "plots" / "all_hybrid_combined_plots_option_A"
+OUTPUT = ROOT / "plots" / "all_hybrid_combined_plots"
 OUTPUT.mkdir(parents=True, exist_ok=True)
-THRESHOLD_FILE = RESULTS / "thresholds_hybrid_option_A.csv"
+THRESHOLD_FILE = RESULTS / "thresholds_hybrid.csv"
 
 MODELS = [
-    dict(name="LSTM-AE", filename="results_LSTM_hybrid_option_A.csv",
+    dict(name="LSTM-AE", filename="results_LSTM_hybrid.csv",
          score="normalized_score", color="#7209b7", threshold= None),
-    dict(name="MLP-AE", filename="results_autoencoder_hybrid_option_A.csv",
+    dict(name="MLP-AE", filename="results_autoencoder_hybrid.csv",
          score="normalized_score", color="#008000", threshold= None),
-    dict(name="XGBoost", filename="results_xgboost_hybrid_option_A.csv",
+    dict(name="XGBoost", filename="results_xgboost_hybrid.csv",
          score="score", color="#d97706", threshold=0.5),
 ]
-# Se seu pipeline usa outro nome para o score NORMALIZADO, altere apenas
-# MODELS[*]['score']. Não substitua por MSE bruto com limiar normalizado.
 
 plt.rcParams.update({
     "font.family": "serif", "font.serif": ["Times New Roman", "DejaVu Serif"],
@@ -63,33 +45,30 @@ plt.rcParams.update({
 def read_model(cfg):
     path = RESULTS / cfg["filename"]
     if not path.is_file():
-        raise FileNotFoundError(f"Arquivo final ausente: {path}")
+        raise FileNotFoundError(f"Final file missing: {path}")
     df = pd.read_csv(path)
     needed = ["drill", "hole", "label", "prediction", cfg["score"]]
     missing = [x for x in needed if x not in df.columns]
     if missing:
-        raise ValueError(f"{path.name}: colunas ausentes {missing}; disponíveis: {df.columns.tolist()}")
+        raise ValueError(f"{path.name}: missing columns {missing}; available: {df.columns.tolist()}")
     if df["drill"].isna().any():
-        raise ValueError(f"{path.name}: drill contém valores ausentes")
+        raise ValueError(f"{path.name}: 'drill' contains missing values")
     for col in ["hole", "label", "prediction", cfg["score"]]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
     if df["hole"].isna().any() or (df["hole"] < 1).any() or (df["hole"] % 1 != 0).any():
-        raise ValueError(f"{path.name}: hole deve conter posições físicas inteiras >=1")
+        raise ValueError(f"{path.name}: hole must contain whole physical positions >=1")
     df["hole"] = df["hole"].astype(int)
     if df.duplicated(["drill", "hole"]).any():
-        raise ValueError(f"{path.name}: pares (drill, hole) duplicados")
+        raise ValueError(f"{path.name}: duplicate pairs (drill, hole)")
     if not df["label"].isin([-1, 0, 1]).all():
-        raise ValueError(f"{path.name}: label deve estar em -1, 0, 1")
-    # Calibração pode ter prediction=NaN, pois não integra o monitoramento.
+        raise ValueError(f"{path.name}: label must be -1, 0, or 1")
     monitored = df[df["hole"] > CALIBRATION_HOLES]
     if not monitored["prediction"].isin([0, 1]).all():
-        raise ValueError(f"{path.name}: prediction deve ser binária para TODOS os furos monitorados")
+        raise ValueError(f"{path.name}: The prediction must be binary for ALL monitored boreholes.")
     df = df.sort_values(["drill", "hole"]).reset_index(drop=True)
     return df
 
-
 def read_threshold_table():
-    """Aceita o formato original (wide) ou model/drill/threshold (long)."""
     if not THRESHOLD_FILE.is_file():
         return None
     table = pd.read_csv(THRESHOLD_FILE)
@@ -97,24 +76,23 @@ def read_threshold_table():
         return table
     if {"model", "drill", "threshold"}.issubset(table.columns):
         return table
-    warnings.warn(f"{THRESHOLD_FILE.name}: formato não reconhecido; "
-                  "serão priorizados os limiares dos CSVs individuais.")
+    warnings.warn(f"{THRESHOLD_FILE.name}: format not recognized; "
+                  "thresholds from the individual CSVs will be prioritized.")
     return None
 
 
 def threshold_for(cfg, sub, table, drill):
     if cfg["name"] == "XGBoost":
         return 0.5
-    # Prioridade: limiar já exportado junto ao score normalizado.
     for field in ("threshold", "normalized_threshold", "threshold_normalized", "decision_threshold"):
         if field in sub.columns:
             vals = pd.to_numeric(sub[field], errors="coerce").dropna().unique()
             if len(vals) > 1 and not np.allclose(vals, vals[0], rtol=1e-8, atol=1e-12):
-                raise ValueError(f"{cfg['name']} broca {drill}: {field} não é constante no fold")
+                raise ValueError(f"{cfg['name']} drill {drill}: {field} not consistent when folding")
             if len(vals):
                 value = float(vals[0])
                 if not np.isfinite(value):
-                    raise ValueError("Limiar não finito")
+                    raise ValueError("Non-finite threshold")
                 return value
     if table is not None:
         if "drill_test" in table.columns:
@@ -127,35 +105,25 @@ def threshold_for(cfg, sub, table, drill):
                                str(drill).strip().lower()), "threshold"]
         vals = pd.to_numeric(found, errors="coerce").dropna().unique()
         if len(vals) > 1 and not np.allclose(vals, vals[0], rtol=1e-8, atol=1e-12):
-            raise ValueError(f"Limiares conflitantes para {cfg['name']} broca {drill}")
+            raise ValueError(f"Conflicting thresholds for {cfg['name']} drill {drill}")
         if len(vals):
             return float(vals[0])
-    warnings.warn(f"Sem limiar exportado para {cfg['name']}, broca {drill}: "
-                  "linha omitida; NÃO foi recalibrada no teste.")
+    warnings.warn(f"No threshold exported for {cfg['name']}, drill {drill}: "
+                  "line omitted; it was NOT recalibrated during the test.")
     return None
-
-
-# Os CSVs foram renomeados: 01 -> pasta original 04, ..., 20 -> 23.
-# Não modifica a identificação exibida nas figuras nem os CSVs.
 RENAMED_TO_ORIGINAL = {
     f"drill_4mm_{new:02d}": f"drill_4mm_{new + 3:02d}"
     for new in range(1, 21)
 }
 
-# Preencha com a identificação RENOMEADA das brocas cujo jams.txt já
-# contenha POSIÇÕES ABSOLUTAS dos furos (e não intervalos). Exemplo:
-# ABSOLUTE_JAM_DRILLS = {"drill_4mm_10"}
-# Confirme primeiro o conteúdo real do arquivo da broca 10.
 ABSOLUTE_JAM_DRILLS = set()
 
-# Se True, só usa a pasta data/segmented. Se False, também procura em data/.
 SEGMENTED_ONLY = False
-
 
 def locate_jams_file(drill):
     renamed = str(drill).strip().lower()
     if renamed not in RENAMED_TO_ORIGINAL:
-        raise ValueError(f"Broca renomeada não reconhecida: {drill!r}")
+        raise ValueError(f"Renamed drill bit not recognized: {drill!r}")
     original = RENAMED_TO_ORIGINAL[renamed]
     roots = [ROOT / "data" / "segmented"]
     if not SEGMENTED_ONLY:
@@ -164,8 +132,6 @@ def locate_jams_file(drill):
     for search_root in roots:
         if not search_root.is_dir():
             continue
-        # Pasta original tem sufixos de batch, collet e data; comparação
-        # por prefixo + '_' impede colisão de 04 com 040, por exemplo.
         for folder in search_root.rglob("*"):
             if not folder.is_dir():
                 continue
@@ -177,7 +143,7 @@ def locate_jams_file(drill):
     candidates = sorted(candidates)
     if len(candidates) > 1:
         raise ValueError(
-            f"Mais de um jams.txt para {renamed} (pasta original {original}): "
+            f"More than one jams.txt for {renamed} (original folder {original}): "
             + "; ".join(map(str, candidates))
         )
     return candidates[0] if candidates else None, original
@@ -193,20 +159,14 @@ def read_jam_numbers(path):
             if not token:
                 continue
             if not re.fullmatch(r"[0-9]+", token) or int(token) <= 0:
-                raise ValueError(f"{path}, linha {line_number}: número inválido {token!r}")
+                raise ValueError(f"{path}, line {line_number}: invalid number {token!r}")
             numbers.append(int(token))
     if not numbers:
-        raise ValueError(f"jams.txt vazio: {path}")
+        raise ValueError(f"jams.txt empty: {path}")
     return np.asarray(numbers, dtype=np.int64)
 
 
 def physical_jams_for_drill(drill, ref):
-    """Busca o arquivo da pasta ORIGINAL correspondente à broca RENOMEADA.
-
-    Regra padrão: números do jams.txt são intervalos sucessivos e usam
-    soma acumulada. Exceções declaradas em ABSOLUTE_JAM_DRILLS já são
-    posições absolutas. Nunca infere JAM automaticamente do último furo.
-    """
     renamed = str(drill).strip().lower()
     path, original = locate_jams_file(renamed)
     if path is not None:
@@ -214,71 +174,64 @@ def physical_jams_for_drill(drill, ref):
         if renamed in ABSOLUTE_JAM_DRILLS:
             positions = numbers
             if len(positions) > 1 and not np.all(np.diff(positions) > 0):
-                raise ValueError(f"{path}: posições absolutas devem ser crescentes")
-            interpretation = "posições absolutas (sem cumsum)"
+                raise ValueError(f"{path}: absolute positions must be increasing")
+            interpretation = "absolute positions (without cumsum)"
         else:
             positions = np.cumsum(numbers)
-            interpretation = "intervalos sucessivos (cumsum)"
+            interpretation = "successive intervals (cumsum)"
         source = str(path)
     elif "is_jam" in ref.columns:
         flags = pd.to_numeric(ref["is_jam"], errors="coerce")
         if not flags.isin([0, 1]).all():
-            raise ValueError(f"is_jam inválido para {renamed}: somente 0/1")
+            raise ValueError(f"invalid is_jam for {renamed}: must be 0/1")
         positions = ref.loc[flags.eq(1), "hole"].to_numpy(dtype=int)
-        source = "results_xgboost_hybrid_option_A.csv:is_jam"
+        source = "results_xgboost_hybrid.csv:is_jam"
         interpretation = "flags is_jam"
     else:
         raise FileNotFoundError(
-            f"Não encontrei jams.txt para {renamed} (pasta ORIGINAL {original}) "
-            f"em data/segmented, nem coluna is_jam no CSV. "
-            f"Exemplo de pasta: data/segmented/{original}_batch_.../jams.txt"
+            f"Could not find jams.txt for {renamed} (ORIGINAL folder {original}) "
+            f"in data/segmented, nor an is_jam column in the CSV. "
+            f"Example folder: data/segmented/{original}_batch_.../jams.txt"
         )
     positions = np.asarray(positions, dtype=int)
     observed = set(ref["hole"].astype(int))
     missing = [int(h) for h in positions if int(h) not in observed]
     if missing:
         raise ValueError(
-            f"JAM(s) de {renamed} (original {original}) fora dos furos do CSV: {missing}. "
-            f"Origem: {source}; interpretação: {interpretation}. "
-            "Confira se o arquivo contém intervalos ou posições absolutas, "
-            "e se a coluna hole representa a numeração física completa."
+            f"JAM(s) for {renamed} (original {original}) outside the CSV holes: {missing}. "
+            f"Source: {source}; interpretation: {interpretation}. "
+            "Check whether the file contains intervals or absolute positions, "
+            "and whether the 'hole' column represents the complete physical numbering."
         )
     print(f"{renamed} -> {original}: JAMs {positions.tolist()} "
-          f"[{interpretation}] (origem: {source})")
+          f"[{interpretation}] (source: {source})")
     return positions, source
 
 
 def shade_regions(ax, ref):
-    # Região de calibração é distinta dos rótulos operacionais.
     ax.axvspan(0.5, CALIBRATION_HOLES + 0.5, color="gray", alpha=0.13,
                label="Calibration (holes 1–5)")
-    # Pintar por rótulo REAL evita inconsistências de arredondamento de 50/80%.
     for label, color, text in [(-1, "#eab308", "Transition (excluded from binary metrics)"),
                                (1, "#ef4444", "Failure-aligned region")]:
         selected = ref.loc[ref["label"] == label, "hole"].astype(int).to_numpy()
         if len(selected):
-            # Rótulo apenas uma vez na legenda.
             for k, h in enumerate(selected):
                 ax.axvspan(h - 0.5, h + 0.5, color=color, alpha=0.11,
                            label=text if k == 0 else "_nolegend_")
     ax.axvline(CALIBRATION_HOLES + 0.5, color="gray", ls="--", lw=0.8)
 
-
 def plot_drill(drill, dfs, threshold_table):
-    """Uma figura por broca: dois AEs no eixo esquerdo e XGBoost no direito."""
     ref = dfs["XGBoost"].loc[dfs["XGBoost"]["drill"] == drill].sort_values("hole").copy()
     fig, ax1 = plt.subplots(figsize=(3.35, 3.35))
     fig.subplots_adjust(left=0.17, right=0.80, top=0.79, bottom=0.17)
     ax2 = ax1.twinx()
     shade_regions(ax1, ref)
 
-    # Escalas diferentes: ambos os AEs usam score NORMALIZADO (esquerda),
-    # e XGBoost usa probabilidade (direita). Nenhum limiar é recalculado.
     for cfg in MODELS:
         name = cfg["name"]
         sub = dfs[name].loc[dfs[name]["drill"] == drill].sort_values("hole").copy()
         if sub.empty:
-            raise ValueError(f"Broca {drill} ausente em {name}")
+            raise ValueError(f"Drill {drill} missing in {name}")
         ax = ax2 if name == "XGBoost" else ax1
         threshold = threshold_for(cfg, sub, threshold_table, drill)
         ax.plot(sub["hole"], sub[cfg["score"]], color=cfg["color"],
@@ -288,24 +241,21 @@ def plot_drill(drill, dfs, threshold_table):
         if threshold is not None:
             ax.axhline(threshold, color=cfg["color"], ls=":", lw=1.0,
                        label=f"{name} threshold ({threshold:.3g})")
-        # Marcar as decisões FINAIS já persistidas (W=2), sem reaplicação.
         alarms = sub[(sub["hole"] > CALIBRATION_HOLES) & (sub["prediction"] == 1)]
         finite = alarms[np.isfinite(alarms[cfg["score"]])]
         if not finite.empty:
             ax.scatter(finite["hole"], finite[cfg["score"]],
                        marker="x", s=32, linewidths=1.25, color=cfg["color"],
                        zorder=6, label=f"{name} definitive alarm (W=2)")
-        # NaN nos scores não deve esconder um alarme final exportado.
         missing = alarms[~np.isfinite(alarms[cfg["score"]])]
         if not missing.empty:
-            warnings.warn(f"{name}, broca {drill}: {len(missing)} alarmes com score ausente; "
-                          "marcados na borda inferior do eixo correspondente.")
+            warnings.warn(f"{name}, drill {drill}: {len(missing)} alarms with a missing score; "
+                          "marked on the bottom edge of the corresponding axis.")
             ax.scatter(missing["hole"], np.zeros(len(missing)) if name == "XGBoost"
                        else np.full(len(missing), ax.get_ylim()[0]),
                        marker="x", s=32, color=cfg["color"], zorder=6)
 
     ax1.set_xlabel("Hole number", fontsize=8, labelpad=2)
-    #ax1.set_title(f"Drill {re.search(r'(d+)$', str(drill)).group(1) if re.search(r'(d+)$', str(drill)) else drill}", loc="left", fontsize=8, fontweight="bold", pad=3)
     ax1.set_ylabel("Normalized AE error", fontsize=7.4, labelpad=2)
     ax2.set_ylabel("XGBoost probability", fontsize=7.4, labelpad=2)
     ax2.set_ylim(-0.05, 1.05)
@@ -315,15 +265,12 @@ def plot_drill(drill, dfs, threshold_table):
     ax2.tick_params(axis="y", labelsize=7, pad=2)
     ax1.grid(axis="both", linestyle=":", alpha=0.25)
 
-    # Um X vermelho para CADA JAM físico desta broca, na base do gráfico.
-    # Por padrão, jams.txt: 39, 10, 3 -> 39, 49, 52. Exceções configuráveis.
     jam_positions, jam_source = physical_jams_for_drill(drill, ref)
     if len(jam_positions):
         ax1.scatter(jam_positions, np.zeros(len(jam_positions)),
                     transform=ax1.get_xaxis_transform(), marker="x", s=55,
                     linewidths=1.8, color="red", clip_on=False, zorder=12)
 
-    # Legenda compacta acima da área de desenho, sem cobrir os dados.
     h1, l1 = ax1.get_legend_handles_labels()
     h2, l2 = ax2.get_legend_handles_labels()
     rename = {
@@ -351,7 +298,7 @@ def plot_drill(drill, dfs, threshold_table):
                ncol=3, fontsize=5.3, frameon=False, columnspacing=0.55,
                handlelength=1.2, handletextpad=0.3, borderaxespad=0.1)
     safe = re.sub(r"[^A-Za-z0-9_-]+", "_", str(drill))
-    base = OUTPUT / f"drill_{safe}_hybrid_temporal_option_A"
+    base = OUTPUT / f"drill_{safe}_hybrid_temporal"
     fig.savefig(base.with_suffix(".pdf"), bbox_inches="tight", pad_inches=0.04)
     fig.savefig(base.with_suffix(".png"), dpi=600, bbox_inches="tight", pad_inches=0.04)
     if SHOW_FIGURES:
@@ -374,8 +321,8 @@ def main():
         keys = df[["drill", "hole", "label"]].copy()
         keys["drill"] = keys["drill"].astype(str)
         if set(map(tuple, keys.to_numpy())) != ref_keys:
-            raise ValueError(f"Os pares (broca, furo, rótulo) de {name} diferem dos do XGBoost. "
-                             "Não é seguro sobrepor curvas com eventos desalinhados.")
+            raise ValueError(f"The (drill, hole, label) pairs for {name} differ from those of XGBoost. "
+                             "It is not safe to overlay curves with misaligned events.")
         evaluated = df[(df["hole"] > CALIBRATION_HOLES) & df["label"].isin([0, 1])]
         if CHECK_EXPECTED_COUNTS:
             yt = evaluated["label"].to_numpy(dtype=int)
@@ -385,18 +332,16 @@ def main():
                       int(((yt == 1) & (yp == 0)).sum()),
                       int(((yt == 1) & (yp == 1)).sum()))
             if counts != EXPECTED_HYBRID[name]:
-                warnings.warn(f"{name}: TN/FP/FN/TP={counts}, diferente da Tabela 2 "
-                              f"{EXPECTED_HYBRID[name]}. Verifique versão/coluna prediction.")
-        print(f"{name}: {df['drill'].nunique()} brocas; {len(evaluated)} eventos binários monitorados")
+                warnings.warn(f"{name}: TN/FP/FN/TP={counts}, different from Table 2 "
+                              f"{EXPECTED_HYBRID[name]}. Check the prediction version/column.")
+        print(f"{name}: {df['drill'].nunique()} drills; {len(evaluated)} monitored binary events")
     table = read_threshold_table()
     drills = reference["drill"].drop_duplicates().tolist()
     if len(drills) != 20:
-        warnings.warn(f"Foram encontradas {len(drills)} brocas, não as 20 esperadas.")
+        warnings.warn(f"{len(drills)} drill bits were found, not the 20 that were expected.")
     rows = [plot_drill(drill, dfs, table) for drill in drills]
     pd.DataFrame(rows).to_csv(OUTPUT / "temporal_plot_audit.csv", index=False)
-    print(f"\n{len(rows)} figuras geradas em: {OUTPUT}")
-    print("Cada broca: UMA figura combinada (PDF vetorial e PNG 600 dpi). CSV de auditoria salvo.")
-
+    print(f"\n{len(rows)} figures generated in: {OUTPUT}")
 
 if __name__ == "__main__":
     main()
