@@ -48,8 +48,8 @@ PROJECT
 │   │
 │   ├── analysis/          # Performance metrics, statistical distributions, and rampa MSE plots
 │   │   ├── hybrid_boxplot.py
-│   │   ├── comparison_xgboost_autoencoders_hybrid.py
-│   │   ├── combined_roc_hybrid.py
+│   │   ├── temporal_evolution_hybrid
+│   │   ├── roc_9_hybrid.py
 │   │   ├── comparison_models_vs._hybrid_listening.py
 │   │   └── ...
 │   │
