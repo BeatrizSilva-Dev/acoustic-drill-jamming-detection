@@ -7,7 +7,7 @@ from sklearn.metrics import (
 
 CALIBRATION_HOLES = 5
 MONITORING_START_HOLE = CALIBRATION_HOLES + 1
-PERSISTENCE_W = 2 
+PERSISTENCE_W = 2
 
 SCRIPT_PATH = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = SCRIPT_PATH
