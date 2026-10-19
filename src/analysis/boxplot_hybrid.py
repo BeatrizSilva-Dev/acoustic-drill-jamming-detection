@@ -50,7 +50,6 @@ def load_and_filter(path, model):
         raise ValueError(f"{model}: there are duplicate pairs (drill, hole).")
     if not df["label"].isin([-1, 0, 1]).all():
         raise ValueError(f"{model}: unexpected labels; expected -1, 0 or 1.")
-    # Physical hole numbers, not row indices. First five holes reserved for calibration.
     eligible = df.loc[(df["hole"] >= 6) & df["label"].isin([0, 1])].copy()
     if eligible.empty:
         raise ValueError(f"{model}: no eligible events after filter.")

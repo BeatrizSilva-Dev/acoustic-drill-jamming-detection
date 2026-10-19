@@ -1,0 +1,4 @@
+configuration,comparison,n_pairs,n_nonzero,W_statistic,p_raw,median_paired_difference,p_holm,significant_holm_0_05
+Hybrid,LSTM-AE vs MLP-AE,20,14,3.0,0.001887179308509098,0.35873015873015873,0.003774358617018196,True
+Hybrid,LSTM-AE vs XGBoost,20,16,35.0,0.08782949103829503,-0.09999999999999998,0.08782949103829503,False
+Hybrid,MLP-AE vs XGBoost,20,18,7.0,0.0005969957988997581,-0.775,0.0017909873966992743,True
