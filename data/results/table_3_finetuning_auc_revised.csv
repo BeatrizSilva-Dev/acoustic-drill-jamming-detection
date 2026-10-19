@@ -1,0 +1,28 @@
+Configuration,Model / fine-tuning,AUC,Status,ROC file
+Common,LSTM-AE,0.8421086467373835,OK — regenerated with per-drill monitoring filter,common_lstm_roc_data.csv
+Common,LSTM-AE — FT all low LR,0.8415514839815708,OK — regenerated with per-drill monitoring filter,common_lstm_ft_all_low_lr_roc_data.csv
+Common,LSTM-AE — FT decoder,0.8395799849994643,OK — regenerated with per-drill monitoring filter,common_lstm_ft_decoder_roc_data.csv
+Common,LSTM-AE — FT last layer,0.8423872281152899,OK — regenerated with per-drill monitoring filter,common_lstm_ft_last_layer_roc_data.csv
+Common,MLP-AE,0.7917068466730955,OK — regenerated with per-drill monitoring filter,common_mlp_roc_data.csv
+Common,MLP-AE — FT all low LR,0.7875495553412621,OK — regenerated with per-drill monitoring filter,common_mlp_ft_all_low_lr_roc_data.csv
+Common,MLP-AE — FT decoder,0.799957141326476,OK — regenerated with per-drill monitoring filter,common_mlp_ft_decoder_roc_data.csv
+Common,MLP-AE — FT last layer,0.7890924675881282,OK — regenerated with per-drill monitoring filter,common_mlp_ft_last_layer_roc_data.csv
+Common,XGBoost,0.8661309332476159,OK — regenerated with per-drill monitoring filter,common_xgboost_roc_data.csv
+Ultrasonic,LSTM-AE,0.822907960998607,OK — regenerated with per-drill monitoring filter,ultrasonic_lstm_roc_data.csv
+Ultrasonic,LSTM-AE — FT all low LR,0.8227793849780348,OK — regenerated with per-drill monitoring filter,ultrasonic_lstm_ft_all_low_lr_roc_data.csv
+Ultrasonic,LSTM-AE — FT decoder,0.8122361512911176,OK — regenerated with per-drill monitoring filter,ultrasonic_lstm_ft_decoder_roc_data.csv
+Ultrasonic,LSTM-AE — FT last layer,0.8196507018107789,OK — regenerated with per-drill monitoring filter,ultrasonic_lstm_ft_last_layer_roc_data.csv
+Ultrasonic,MLP-AE,0.7436622736526304,OK — regenerated with per-drill monitoring filter,ultrasonic_mlp_roc_data.csv
+Ultrasonic,MLP-AE — FT all low LR,0.7457837779920712,OK — regenerated with per-drill monitoring filter,ultrasonic_mlp_ft_all_low_lr_roc_data.csv
+Ultrasonic,MLP-AE — FT decoder,0.751933997642773,OK — regenerated with per-drill monitoring filter,ultrasonic_mlp_ft_decoder_roc_data.csv
+Ultrasonic,MLP-AE — FT last layer,0.763762991535412,OK — regenerated with per-drill monitoring filter,ultrasonic_mlp_ft_last_layer_roc_data.csv
+Ultrasonic,XGBoost,0.8455159112825459,OK — regenerated with per-drill monitoring filter,ultrasonic_xgboost_roc_data.csv
+Hybrid,LSTM-AE,0.8335583413693346,OK — regenerated with per-drill monitoring filter,hybrid_lstm_roc_data.csv
+Hybrid,LSTM-AE — FT all low LR,0.8396657023465124,OK — regenerated with per-drill monitoring filter,hybrid_lstm_ft_all_low_lr_roc_data.csv
+Hybrid,LSTM-AE — FT decoder,0.830686810243223,OK — regenerated with per-drill monitoring filter,hybrid_lstm_ft_decoder_roc_data.csv
+Hybrid,LSTM-AE — FT last layer,0.8328297439194258,OK — regenerated with per-drill monitoring filter,hybrid_lstm_ft_last_layer_roc_data.csv
+Hybrid,MLP-AE,0.7744776599164256,OK — regenerated with per-drill monitoring filter,hybrid_mlp_roc_data.csv
+Hybrid,MLP-AE — FT all low LR,0.7725704489446051,OK — regenerated with per-drill monitoring filter,hybrid_mlp_ft_all_low_lr_roc_data.csv
+Hybrid,MLP-AE — FT decoder,0.7601414336226293,OK — regenerated with per-drill monitoring filter,hybrid_mlp_ft_decoder_roc_data.csv
+Hybrid,MLP-AE — FT last layer,0.7683702989392478,OK — regenerated with per-drill monitoring filter,hybrid_mlp_ft_last_layer_roc_data.csv
+Hybrid,XGBoost,0.8415514839815709,OK — regenerated with per-drill monitoring filter,hybrid_xgboost_roc_data.csv
