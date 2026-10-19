@@ -1,0 +1,10 @@
+configuration,model,auc,roc_file
+Common,MLP-AE,0.7917068466730955,common_mlp_roc_data.csv
+Common,LSTM-AE,0.8421086467373835,common_lstm_roc_data.csv
+Common,XGBoost,0.8661309332476159,common_xgboost_roc_data.csv
+Ultrasonic,MLP-AE,0.7436622736526304,ultrasonic_mlp_roc_data.csv
+Ultrasonic,LSTM-AE,0.822907960998607,ultrasonic_lstm_roc_data.csv
+Ultrasonic,XGBoost,0.8455159112825459,ultrasonic_xgboost_roc_data.csv
+Hybrid,MLP-AE,0.7744776599164256,hybrid_mlp_roc_data.csv
+Hybrid,LSTM-AE,0.8335583413693346,hybrid_lstm_roc_data.csv
+Hybrid,XGBoost,0.8415514839815709,hybrid_xgboost_roc_data.csv
