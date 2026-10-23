@@ -1658,7 +1658,6 @@ if "human_severity_score" in df_final.columns:
         linewidth=0.5,
         width=0.75,
     )
-
     for p in ax.patches:
         height = p.get_height()
         ax.text(
