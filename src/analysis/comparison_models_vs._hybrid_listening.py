@@ -1671,7 +1671,6 @@ if "human_severity_score" in df_final.columns:
             weight="bold",
             rotation=90,
         )
-
     ax.set_ylim(0, 130)
     ax.set_ylabel("Observed Alarm Rate (%)", fontsize=9)
     ax.set_xlabel("Operational Acoustic Severity Levels", fontsize=9, labelpad=6)
